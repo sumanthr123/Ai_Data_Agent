@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-obsidian: #05070b;
+  --color-glass: rgba(17, 24, 39, 0.65);
+  --color-hairline: rgba(255, 255, 255, 0.07);
+  --color-glow: rgba(59, 130, 246, 0.4);
+  --color-gold: #10b981;
+  --color-silver: #f59e0b;
+  --color-bronze: #c2410c;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-obsidian);
+  color: #e5e7eb;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: rgba(59, 130, 246, 0.35); }
+
+/* Thin, quiet scrollbars */
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
+
+@layer components {
+  .glass {
+    background: var(--color-glass);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid var(--color-hairline);
+  }
+  .glow-border { box-shadow: 0 0 0 1px var(--color-glow), 0 0 24px -6px rgba(59, 130, 246, 0.45); }
+  .text-gradient {
+    background: linear-gradient(90deg, #22d3ee, #3b82f6 50%, #4f46e5);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Ambient nebula behind everything */
+.nebula-bg::before, .nebula-bg::after {
+  content: "";
+  position: fixed;
+  inset: auto;
+  width: 60vw;
+  height: 60vw;
+  border-radius: 9999px;
+  filter: blur(120px);
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+.nebula-bg::before { top: -25vw; left: -10vw; background: radial-gradient(circle, #06b6d4, transparent 60%); }
+.nebula-bg::after { bottom: -30vw; right: -15vw; background: radial-gradient(circle, #4f46e5, transparent 60%); }
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55); }
+  100% { box-shadow: 0 0 0 10px rgba(34, 211, 238, 0); }
+}
+.pulse-node { animation: pulse-ring 1.4s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Code highlighting (highlight.js classes), tuned for the dark code card. */
+.hljs-keyword, .hljs-built_in.hljs-keyword, .hljs-meta .hljs-keyword { color: #8aa8ff; }
+.hljs-title.function_, .hljs-title.class_ { color: #f5d76e; }
+.hljs-string, .hljs-regexp { color: #a5e3a0; }
+.hljs-number, .hljs-literal { color: #f472b6; }
+.hljs-built_in, .hljs-type { color: #f87171; }
+.hljs-comment, .hljs-quote { color: #7c8594; font-style: italic; }
+.hljs-params, .hljs-variable { color: #c4b5fd; }
+.hljs-attr, .hljs-property { color: #7dd3fc; }
+.hljs-meta, .hljs-decorator { color: #fbbf24; }
+.hljs-operator, .hljs-punctuation { color: #cbd5e1; }
+
+/* Visible keyboard focus on every interactive element. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 8px;
+}

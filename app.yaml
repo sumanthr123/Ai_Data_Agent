@@ -1,0 +1,27 @@
+# Databricks Apps runtime. The app listens on DATABRICKS_APP_PORT (8000).
+command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+
+env:
+  # Start live so every question gets a real answer; the header toggles the simulated demo.
+  - name: MOCK_MODE
+    value: "false"
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: UC_CATALOG
+    value: "ai_data_agent"
+  - name: UC_SCHEMAS
+    value: "orders"
+  # endpoint|Display name|Provider, in lane order. Lane 1 is the default lead.
+  - name: COUNCIL_MODELS
+    value: "gemini-3-5-flash|Gemini 3.5 Flash|Google,claude-sonnet-5-5/claude-sonnet-5-5|Claude Sonnet 5.5|Anthropic,databricks-gpt-oss-120b|GPT-OSS 120B|OpenAI open-weight,gemini-3-5-flash/gemini-flash-latest|Gemini Flash Latest|Google,gemini-3-5-flash/gemini-flash-lite-latest|Gemini Flash Lite Latest|Google,gemini-3-5-flash/gemini-pro-latest|Gemini Pro Latest|Google,gemini-3-5-flash/gemini-3-flash-preview|Gemini 3 Flash Preview|Google,gemini-3-5-flash/gemini-3-1-pro-preview|Gemini 3.1 Pro Preview|Google,gemini-3-5-flash/gemini-3-1-flash-lite-preview|Gemini 3.1 Flash Lite Preview|Google,gemini-3-5-flash/gemini-3-1-flash-lite|Gemini 3.1 Flash Lite|Google,gemini-3-5-flash/gemini-3-5-flash-lite|Gemini 3.5 Flash Lite|Google,gemini-3-5-flash/gemini-3-6-flash|Gemini 3.6 Flash|Google,gemini-3-5-flash/gemini-3-7-flash|Gemini 3.7 Flash|Google,gemini-3-5-flash/gemini-3-8-flash|Gemini 3.8 Flash|Google,gemini-3-5-flash/gemini-4-argon|Gemini 4 Argon|Google,claude-sonnet-5-5/claude-haiku-5-5|Claude Haiku 5.5|Anthropic,claude-sonnet-5-5/claude-opus-5-5|Claude Opus 5.5|Anthropic,claude-sonnet-5-5/claude-fable-5-1|Claude Fable 5.1|Anthropic,claude-sonnet-5-5/claude-opus-5|Claude Opus 5|Anthropic,claude-sonnet-5-5/claude-sonnet-5|Claude Sonnet 5|Anthropic,claude-sonnet-5-5/claude-fable-5|Claude Fable 5|Anthropic,claude-sonnet-5-5/claude-opus-4-8|Claude Opus 4.8|Anthropic,claude-sonnet-5-5/claude-opus-4-7|Claude Opus 4.7|Anthropic,claude-sonnet-5-5/claude-sonnet-4-6|Claude Sonnet 4.6|Anthropic,claude-sonnet-5-5/claude-opus-4-6|Claude Opus 4.6|Anthropic,claude-sonnet-5-5/claude-opus-4-5-20251101|Claude Opus 4.5|Anthropic,claude-sonnet-5-5/claude-haiku-4-5-20251001|Claude Haiku 4.5|Anthropic,claude-sonnet-5-5/claude-sonnet-4-5-20250929|Claude Sonnet 4.5|Anthropic"
+  - name: COUNCIL_SIZE
+    value: "3"
+  # Live web search (Gemini Google Search over HTTPS) for current information.
+  - name: GEMINI_API_KEY
+    valueFrom: gemini-api-key
+  # Query as the signed-in user when the app has user authorization enabled.
+  # Every question goes to the full council (Gemini, Claude, OpenAI); the best-supported answer is chosen.
+  - name: ROUTING
+    value: "council"
+  - name: USE_USER_TOKEN
+    value: "false"

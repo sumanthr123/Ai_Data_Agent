@@ -1,0 +1,78 @@
+# Databricks Asset Bundle: `databricks bundle deploy -t dev` then `databricks bundle run consensus_agent -t dev`.
+# Build the UI first: (cd frontend && npm ci && npm run build). frontend/dist is uploaded with the source.
+bundle:
+  name: databricks-consensus-agent
+
+variables:
+  warehouse_id:
+    description: Serverless SQL warehouse the council runs its SQL on.
+    default: 3d46aa484790192c
+
+resources:
+  apps:
+    consensus_agent:
+      name: consensus-agent
+      description: Multi-model consensus AI data agent (Databricks-native)
+      source_code_path: .
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+        - name: llama-3-3-70b
+          serving_endpoint:
+            name: databricks-meta-llama-3-3-70b-instruct
+            permission: CAN_QUERY
+        - name: gpt-oss-120b
+          serving_endpoint:
+            name: databricks-gpt-oss-120b
+            permission: CAN_QUERY
+        - name: qwen35-122b
+          serving_endpoint:
+            name: databricks-qwen35-122b-a10b
+            permission: CAN_QUERY
+        - name: llama-4-maverick
+          serving_endpoint:
+            name: databricks-llama-4-maverick
+            permission: CAN_QUERY
+        - name: gemini-3-5-flash
+          serving_endpoint:
+            name: gemini-3-5-flash
+            permission: CAN_QUERY
+        - name: claude-sonnet-5-5
+          serving_endpoint:
+            name: claude-sonnet-5-5
+            permission: CAN_QUERY
+        - name: gemini-api-key
+          secret:
+            scope: ai_data_agent
+            key: gemini_api_key
+            permission: READ
+        - name: superstore-table
+          uc_securable:
+            securable_full_name: ai_data_agent.orders.superstore
+            securable_type: TABLE
+            permission: SELECT
+        # Attached data files are stored here and queried with read_files().
+        - name: uploads-volume
+          uc_securable:
+            securable_full_name: ai_data_agent.orders.uploads
+            securable_type: VOLUME
+            permission: WRITE_VOLUME
+        - name: uploads-volume-read
+          uc_securable:
+            securable_full_name: ai_data_agent.orders.uploads
+            securable_type: VOLUME
+            permission: READ_VOLUME
+
+sync:
+  exclude:
+    - .venv
+    - frontend/node_modules
+    - frontend/src
+    - "**/__pycache__"
+
+targets:
+  dev:
+    mode: development
+    default: true
