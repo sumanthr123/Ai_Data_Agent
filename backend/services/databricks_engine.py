@@ -261,14 +261,8 @@ def _currency(tables: list[TableNode]) -> tuple[str, str]:
 
 
 PLAN_PROMPT = """You are one member of a council of data agents on Databricks. Answer the user's question.
-Today is {today}.
 
-Unity Catalog tables you can query (Databricks SQL, read-only):
-{schema}
-
-Data coverage: {coverage}
-
-If the question needs these tables, reply with ONLY this JSON:
+If the question needs the Unity Catalog tables listed below, reply with ONLY this JSON:
 {{"needs_data": true, "sql": "<one Databricks SQL SELECT using full catalog.schema.table names>",
   "reasoning": "<one sentence on how the query answers it>", "confidence": <0..1>}}
 If it needs current or real-time information you can't know (weather, news, sports, prices, exchange rates, elections,
@@ -283,13 +277,29 @@ If the user attached files and asks for a summary or overview of them (rather th
 general answer from the attached content and previews, covering every file. Use SQL only for specific calculations.
 
 SQL rules:
+- Databricks Spark SQL, read-only: a single SELECT or WITH ... SELECT. Never DDL, DML or admin commands.
+- Use ONLY tables and columns listed below; never guess a name. If the data needed isn't there, use the general
+  answer format and say which table or column is missing instead of writing SQL.
+- Do aggregations (GROUP BY, SUM, COUNT, AVG) and filters (WHERE) in SQL. Add LIMIT 100 to row-level listings and
+  rankings unless the question asks for a specific number or for every row.
 - Filter exactly the periods, regions and categories the question names. If the period is outside the data coverage,
-  still query that period (it will return no rows); never substitute another period.
+  still query that period (it will return no rows); never substitute another period. Use date ranges
+  (order_date >= DATE '2017-01-01' AND order_date < DATE '2018-01-01') rather than functions on the column.
 - Profit margin = SUM(profit) / NULLIF(SUM(sales), 0), never an average of row-level margins.
 - Average order value = SUM(sales) / COUNT(DISTINCT order_id); average line-item sales = AVG(sales). Orders are
   COUNT(DISTINCT order_id), not row counts.
 - Return every metric the question asks for. Name columns with their grain, e.g. total_sales, avg_sales_per_order.
-- Round money to 2 decimals. Don't COALESCE missing values to 0."""
+- Round money to 2 decimals. Don't COALESCE missing values to 0.
+
+Example. Question: Top 5 customers by sales in 2017
+{{"needs_data": true, "sql": "SELECT customer_name, ROUND(SUM(sales), 2) AS total_sales FROM ai_data_agent.orders.superstore WHERE order_date >= DATE '2017-01-01' AND order_date < DATE '2018-01-01' GROUP BY customer_name ORDER BY total_sales DESC LIMIT 5", "reasoning": "Sum 2017 sales per customer and keep the top 5.", "confidence": 0.95}}
+
+Unity Catalog tables you can query:
+{schema}
+
+Data coverage: {coverage}
+
+Today is {today}."""
 
 REWRITE_PROMPT = """Rewrite the user's latest message as one fully self-contained question, using the conversation
 for any missing context (what "it", "that", "same", "those", "what about 2016" refer to). Keep the user's intent and
