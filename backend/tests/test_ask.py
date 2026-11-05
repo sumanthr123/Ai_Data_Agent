@@ -133,6 +133,12 @@ class OrchestratorTests(unittest.TestCase):
                                  FakeData().execute(SQL).result, [])
         self.assertEqual({c.name: c.status for c in checks}["no_unsupported_causes"], "failed")
 
+    def test_causal_wording_with_words_in_between(self):
+        for text in ("The low margin is driven primarily by losses in Tables.", "It fell due largely to discounts.", "Sales grew because of promotions."):
+            self.assertTrue(grounding.CAUSAL.search(text), text)
+        for text in ("Tables had the largest loss, -$17,725.48.", "The due date was 2017-03-01.", "Losses were largest in Tables."):
+            self.assertIsNone(grounding.CAUSAL.search(text), text)
+
     def test_reviewer_fix_is_executed(self):
         veto = {**REJECTED, "required_sql_fix": FIX}
         fixed = {**GOOD, "draft_answer": "West: $725,457.82; East: $678,781.24."}

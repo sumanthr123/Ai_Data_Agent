@@ -11,7 +11,9 @@ from backend.schemas import ResultSet
 from backend.services import analysis
 from backend.services.databricks_engine import _table_markdown, _unsupported_numbers
 
-CAUSAL = re.compile(r"\b(because|due to|caused by|driven by|as a result of|led to|resulted in|thanks to)\b", re.I)
+# Allows up to two words in between: "driven primarily by", "due largely to", "caused mainly by".
+CAUSAL = re.compile(r"\b(because|(?:due|owing)(?:\s+\w+){0,2}\s+to|(?:caused|driven|explained)(?:\s+\w+){0,2}\s+by|"
+                    r"as a result of|led to|resulted in|thanks to)\b", re.I)
 _SENTENCE_END = re.compile(r"(?<=[.!?])(\s+)")
 
 
