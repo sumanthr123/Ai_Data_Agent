@@ -151,6 +151,10 @@ export default function AssistantApp() {
     }
   }
   const pending = a.active?.state?.pending_clarification
+  const label = (name: string) => {
+    const d = datasets.find((x) => x.dataset === name)
+    return d?.kind === 'upload' ? d.description.replace(/^Uploaded /, '') : name.split('.').at(-1)
+  }
   useEffect(() => { if (pending) box.current?.focus() }, [pending])
   const examples = starters(datasets.filter((d) => selected.includes(d.dataset)))
 
@@ -232,7 +236,7 @@ export default function AssistantApp() {
                 )}
               </div>
               <p className="mt-1.5 text-center text-[11px] text-zinc-500">
-                {selected.length ? `Using ${selected.map((s) => s.split('.').at(-1)).join(', ')}` : 'No dataset selected'} · Enter to send, Shift+Enter for a new line
+                {selected.length ? `Using ${selected.map(label).join(', ')}` : 'No dataset selected'} · Enter to send, Shift+Enter for a new line
               </p>
             </div>
           </div>
