@@ -192,9 +192,9 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("250,128.35", r.answer)
 
     def test_insufficient_schema(self):
-        r, _, data = run({CFG.analyst: [{"status": "INSUFFICIENT_SCHEMA", "sql": None, "missing": "no rating column"}]})
+        r, _, data = run({CFG.analyst: [{"status": "INSUFFICIENT_SCHEMA", "sql": None, "missing": "no rating column."}]})
         self.assertEqual(r.status, "INSUFFICIENT_SCHEMA")
-        self.assertIn("no rating column", r.answer)
+        self.assertTrue(r.answer.endswith("no rating column."))
         self.assertEqual(data.executed, [])
 
     def test_unauthorized_dataset(self):

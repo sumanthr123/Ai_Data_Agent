@@ -152,7 +152,7 @@ class Orchestrator:
             return self._finish("NEEDS_CLARIFICATION", state, clarifying_question=plan.clarifying_question, assumptions=plan.assumptions)
         if plan.status == "INSUFFICIENT_SCHEMA" or not plan.sql:
             self._event("generate_sql", "skipped", mark, "data not available")
-            missing = plan.missing or "the data needed isn't in these tables"
+            missing = (plan.missing or "the data needed isn't in these tables").strip().rstrip(".")
             return self._finish("INSUFFICIENT_SCHEMA", state, answer=f"This can't be answered from {', '.join(datasets)}: {missing}.")
         self._event("generate_sql", "succeeded", mark)
 
