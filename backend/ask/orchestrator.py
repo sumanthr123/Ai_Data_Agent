@@ -21,7 +21,7 @@ from typing import Any, Literal, Protocol, TypeVar
 from databricks.sdk import WorkspaceClient
 from pydantic import BaseModel, ValidationError
 
-from backend.ask import grounding, prompts, sql_guard
+from backend.ask import grounding, joins, profiling, prompts, sql_guard
 from backend.ask.budget import Budget, BudgetExhausted
 from backend.ask.cache import ResultCache, normalize_sql
 from backend.ask.contracts import (
@@ -30,6 +30,7 @@ from backend.ask.contracts import (
     Verification,
 )
 from backend.ask.models import ModelClient
+from backend.ask.registry import Registry
 from backend.ask.settings import AskSettings
 from backend.ask.tracing import Tracer
 from backend.ask.warehouse import Execution, QueryError, execute
@@ -85,9 +86,13 @@ def _data(kind: str, text: str) -> str:
 
 class Orchestrator:
     def __init__(self, cfg: AskSettings, data: DataAccess, llm: ModelClient, auth: AuthContext, auth_key: str,
-                 cache: ResultCache, tracer: Tracer, cancelled: threading.Event | None = None) -> None:
+                 cache: ResultCache, tracer: Tracer, cancelled: threading.Event | None = None, registry: Registry | None = None,
+                 user_key: str = "local-user") -> None:
         self.cfg, self.data, self.llm, self.auth, self.auth_key, self.cache, self.tracer = cfg, data, llm, auth, auth_key, cache, tracer
         self.cancelled = cancelled or threading.Event()
+        self.registry, self.user_key = registry or Registry(cfg, None), user_key
+        self.meta: dict[str, list[ColumnNode]] = {}
+        self.join_checks: list[DeterministicCheck] = []
         self.budget = Budget(cfg.max_model_calls, cfg.max_total_tokens, cfg.max_sql_attempts)
         self.verification = Verification()
         self.events: list[StageEvent] = []
@@ -120,13 +125,21 @@ class Orchestrator:
         cfg = self.cfg
         datasets = list(dict.fromkeys(d.strip().lower() for d in (req.datasets or state.active_datasets or [cfg.default_dataset])))
         mark = time.monotonic()
+        denied = "Couldn't open {}: it doesn't exist or you don't have access."
+        readable = [await asyncio.to_thread(self.registry.can_read, d, self.user_key) for d in datasets]
+        if not all(readable):
+            # Unregistered tables and other users' uploads look the same: neither is acknowledged to exist.
+            self._event("context", "failed", mark, "dataset not available to this user")
+            return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)))
         try:
             tables = await asyncio.to_thread(self.data.describe, datasets)
         except Exception as exc:
             self._event("context", "failed", mark, _plain_error(exc))
-            return self._finish("ERROR", state, answer=f"Couldn't open {', '.join(datasets)}: it doesn't exist or you don't have access.")
-        self.sources = [SourceInfo(table=t.full_name, updated_at=t.updated_at) for t in tables]
+            return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)))
         self.versions = {t.full_name.lower(): t.updated_at or "" for t in tables}
+        self.meta = {t.full_name.lower(): t.columns for t in tables}
+        described = [await self._describe(t) for t in tables]
+        self.sources = [s for s, _ in described]
         state.active_datasets = datasets
 
         question = req.question
@@ -136,7 +149,7 @@ class Orchestrator:
         state.pending_clarification = None
         context: dict[str, Any] = {
             "today": dt.date.today().isoformat(),
-            "tables": [f"{t.full_name}: {', '.join(f'{c.name} {c.type}' for c in t.columns)}" for t in tables],
+            "tables": [d for _, d in described],
             "definitions": {**cfg.definitions, **state.resolved_definitions},
         }
         if state.last_sql:  # follow-ups inherit the previous filters unless the question changes them
@@ -169,7 +182,7 @@ class Orchestrator:
                 sql, assumptions = fix.sql, fix.assumptions or assumptions
 
         self.proposal = await self._draft(context, question, guarded.sql, assumptions, [])
-        checks = grounding.check(self.proposal, self.execution.result, guarded.has_join)
+        checks = grounding.check(self.proposal, self.execution.result, self.join_checks)
         review = await self._review(context, question, checks)
         rejected = self._rejected(review, checks)
         earlier: tuple[ProposalPayload, Execution] | None = None
@@ -189,7 +202,7 @@ class Orchestrator:
             if earlier is None:
                 earlier = (self.proposal, self.execution)
             self.proposal = await self._draft(context, question, guarded.sql, assumptions, issues)
-            checks = grounding.check(self.proposal, self.execution.result, guarded.has_join)
+            checks = grounding.check(self.proposal, self.execution.result, self.join_checks)
             review = await self._review(context, question, checks)
             rejected = self._rejected(review, checks)
 
@@ -204,6 +217,35 @@ class Orchestrator:
 
     # ---- steps -------------------------------------------------------------------------------------------------
 
+    async def _describe(self, table: TableInfo) -> tuple[SourceInfo, dict[str, Any]]:
+        """Evidence source + the compact table context models see: columns, grain, profile notes, descriptions."""
+        name = table.full_name.lower()
+        record = self.registry.get(name)
+        profile = record.profile if record and record.kind == "upload" else self.registry.shared_profile(name, table.updated_at or "")
+        if profile is None and record is not None:
+            keys = [k for k in (record.key_columns, record.grain_columns) if k]
+            try:
+                profile = await asyncio.wait_for(asyncio.to_thread(profiling.profile, self.data.execute, name, table.columns, keys,
+                                                                   record.date_column), 30)
+                self.registry.set_shared_profile(name, table.updated_at or "", profile)
+            except Exception as exc:  # a missing profile never blocks an answer
+                self._event("context", "skipped", time.monotonic(), f"profile of {name} unavailable: {_plain_error(exc)[:120]}")
+        context: dict[str, Any] = {"name": table.full_name, "columns": ", ".join(f"{c.name} {c.type}" for c in table.columns)}
+        if record:
+            context |= {k: v for k, v in (("description", record.description), ("grain", record.grain)) if v}
+            notes = {c: d for c, d in record.column_descriptions.items() if any(x.name == c for x in table.columns)}
+            if record.original_names:
+                notes |= {c: f"uploaded header '{o}'" for c, o in record.original_names.items() if o and o.lower() != c}
+            if notes:
+                context["column_descriptions"] = notes
+        if profile:
+            context["profile"] = profiling.compact(profile)
+        source = SourceInfo(table=table.full_name, updated_at=table.updated_at, kind=record.kind if record else "shared",
+                            row_count=profile.row_count if profile else None, date_range=profile.date_range if profile else None,
+                            warnings=(profile.warnings if profile else []) + (record.warnings if record else []),
+                            expires_at=record.expires_at if record else None)
+        return source, context
+
     async def _run_sql(self, sql: str, allowed: set[str]) -> tuple[sql_guard.GuardedSql, Execution]:
         self.budget.reserve_sql()
         self.verification.sql_attempts = self.budget.sql
@@ -212,6 +254,14 @@ class Orchestrator:
         with self.tracer.span("sql", "TOOL", {"sql": sql}) as span:
             try:
                 guarded = sql_guard.guard(sql, allowed)
+                if guarded.has_join:  # cardinality is measured in SQL before the query may run
+                    try:
+                        self.join_checks = await asyncio.to_thread(joins.check, guarded.sql, self.meta, self.data.execute,
+                                                                   (self.auth_key, tuple(sorted(self.versions.items()))))
+                    except joins.JoinRejected as exc:
+                        raise UnsafeSqlError(str(exc)) from exc
+                else:
+                    self.join_checks = []
                 key = (self.auth_key, "|".join(self.versions.get(t, "") for t in guarded.tables), normalize_sql(guarded.sql))
                 hit = self.cache.get(key)
                 if hit:
@@ -288,7 +338,7 @@ class Orchestrator:
             # The Adjudicator's figures must come from one of the executed results, like any other answer.
             for proposal, run in reversed(versions):
                 candidate = proposal.model_copy(update={"draft_answer": verdict.final_answer})
-                checks = grounding.check(candidate, run.result, False)
+                checks = grounding.check(candidate, run.result, self.join_checks)
                 if not any(c.status == "failed" for c in checks):
                     self.proposal, self.execution = proposal, run
                     self.verification.checks = checks

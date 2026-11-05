@@ -76,6 +76,40 @@ backend/tests/test_ask.py
 | Why did West sell the most in 2017? | ANSWERED, reviewed after 1 correction; no causes stated as fact | 5 | 7.9k | 35s |
 | Average customer satisfaction score | INSUFFICIENT_SCHEMA (no such column) | 1 | 0.8k | 4s |
 
+## Phase 2: datasets, profiling, uploads, joins
+
+```
+POST /api/ask/uploads (CSV/TSV/XLSX, conversation_id, sheet?)          ingest.py, the only code path that writes
+  validate: extension + MIME + magic bytes, ≤25 MB, ≤200 columns, ≤20 sheets, ≤500k rows, UTF-8 (else cp1252, flagged)
+  parse: headers made SQL-safe and unique; rows with the wrong field count listed by line number, not loaded
+  infer in code: leading zeros → STRING; 1,234.50 → DOUBLE; N/A/null → NULL; M/D/Y → DATE only if unambiguous;
+                 mostly-numeric columns with text → STRING. Every coercion is reported per column.
+  stage: /Volumes/<catalog>/<schema>/uploads/<user hash>/<conversation>/<upload id>/{original.ext, data.csv}
+  table: CREATE TABLE <catalog>.user_uploads.u_<user>_<id> AS SELECT CAST(...) FROM read_files(data.csv, FAILFAST)
+         → row count verified (else dropped and rolled back) → profiled in SQL → registered with owner and TTL
+GET  /api/ask/datasets            shared datasets + the caller's own uploads
+DELETE /api/ask/uploads/{name}    owner only; expired uploads are invisible at once and dropped by an hourly sweep
+```
+
+- **Registry** (`registry.py`): shared datasets and their grain, keys and column descriptions in `datasets.json`;
+  uploads in the Delta table `user_uploads.dataset_registry`, so both app workers see them. Only backend code writes
+  it, with bound parameters.
+- **Isolation:** an upload is readable only by the user who uploaded it (`X-Forwarded-Email`, hashed). Unregistered
+  tables and other users' uploads get the same "doesn't exist or no access" error. With `USE_USER_TOKEN=true` the
+  uploader is also granted SELECT on their table, so Unity Catalog enforces it as well.
+- **Profiling** (`profiling.py`, SQL only): row count, NULL rates, approximate distinct counts, min/max, date
+  range, duplicate keys, leading zeros, padded and blank strings, numbers stored as text, ZIP codes stored as numbers.
+  Shared profiles are cached per table version. Models see a compact summary (only columns with something to note).
+- **Join safety** (`joins.py`), before a query with joins runs: key types must match, and each side's key uniqueness
+  is measured to classify 1:1 / 1:N / N:1 / N:M. N:M joins, and SUM/AVG/COUNT over the unique side of a 1:N join, are
+  blocked and sent back to the Analyst. Joins through CTEs or subqueries are reported as not checked.
+- **Volume CSV as the default dataset:** `register_volume_csv` creates the Delta table once, keeping rows that don't
+  fit the schema in `_rescued_data` and counting them.
+
+Live (2026-11-05): superstore profiled at 9,994 rows (2014-01-03 to 2017-12-30), and the profile found 8 rows that
+repeat an (order_id, product_id) pair. An uploaded targets CSV joined to superstore was checked as 1:N, then answered
+and reviewed. Leading-zero codes were kept, one malformed line was reported, and another user got "no access".
+
 ## Configuration to decide (non-blocking; placeholders in `.env.example`)
 
 1. **User-scoped access.** Today queries run as the app's service principal, and every response says so
@@ -86,7 +120,5 @@ backend/tests/test_ask.py
 
 ## Next phases
 
-- **Phase 2:** UC CSV registration, deterministic profiling, CSV/XLSX upload isolation per user/conversation with TTL,
-  join cardinality checks (replacing today's `join_cardinality` warning).
 - **Phase 3:** 3-pane UI on `/api/ask` with streamed stages and the evidence drawer.
 - **Phase 4:** single-model vs debate evaluation suite (`evals/`), UC permissions checklist.

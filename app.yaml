@@ -49,3 +49,8 @@ env:
     value: "50"
   - name: MAX_FINAL_ANSWER_WORDS
     value: "250"
+  # Phase 2: uploads become tables in this schema (app principal: USE SCHEMA, CREATE TABLE, SELECT on it only).
+  - name: UC_UPLOAD_SCHEMA
+    value: "user_uploads"
+  - name: UPLOAD_TTL_HOURS
+    value: "24"

@@ -44,6 +44,13 @@ class AskSettings:
     catalog: str = os.getenv("UC_CATALOG", "ai_data_agent")
     schema: str = os.getenv("UC_SCHEMA", "orders")
     upload_volume: str = os.getenv("UC_UPLOAD_VOLUME", "uploads")
+    # Uploaded files become tables here; the dataset registry lives here too. Only the ingestion service writes to it.
+    upload_schema: str = os.getenv("UC_UPLOAD_SCHEMA", "user_uploads")
+    upload_max_mb: int = _int("UPLOAD_MAX_MB", 25)
+    upload_max_columns: int = _int("UPLOAD_MAX_COLUMNS", 200)
+    upload_max_sheets: int = _int("UPLOAD_MAX_SHEETS", 20)
+    upload_max_rows: int = _int("UPLOAD_MAX_ROWS", 500_000)
+    upload_ttl_hours: int = _int("UPLOAD_TTL_HOURS", 24)
     analyst: str = os.getenv("ANALYST_MODEL_ENDPOINT", "gemini-3-5-flash")
     reviewer: str = os.getenv("REVIEWER_MODEL_ENDPOINT", "databricks-gpt-oss-120b")
     adjudicator: str = os.getenv("ADJUDICATOR_MODEL_ENDPOINT", "gemini-3-5-flash/gemini-pro-latest")
@@ -72,6 +79,10 @@ class AskSettings:
     # {"endpoint": [usd_per_1M_input, usd_per_1M_output]}; costs are reported only for endpoints listed here.
     prices: dict = field(default_factory=lambda: _json("MODEL_PRICES_JSON", {}))
     mlflow_experiment: str = os.getenv("MLFLOW_EXPERIMENT", "")
+
+    @property
+    def registry_table(self) -> str:
+        return f"{self.catalog}.{self.upload_schema}.dataset_registry"
 
     def efforts(self) -> dict[str, str]:
         return {e: v for e, v in ((self.analyst, self.analyst_effort), (self.reviewer, self.reviewer_effort),

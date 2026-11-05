@@ -51,6 +51,7 @@ class FakeModels:
 class FakeData:
     def __init__(self) -> None:
         self.executed: list[str] = []
+        self.profiled: list[str] = []
         self.described = 0
 
     def describe(self, names: list[str]) -> list[TableInfo]:
@@ -61,6 +62,10 @@ class FakeData:
                                   (("region", "string"), ("sales", "double"), ("order_date", "date"), ("postal_code", "string"))], "2026-11-01T00:00:00+00:00")]
 
     def execute(self, sql: str) -> Execution:
+        if sql.startswith("SELECT COUNT(*) AS n, COUNT("):
+            self.profiled.append(sql)
+            row = {"n": 9994, "nn_0": 9994, "nn_2": 9994, "mn_2": "2014-01-03", "mx_2": "2017-12-30", "nn_3": 9994, "dup_0": 0, "dup_1": 8}
+            return Execution(analysis.shape(list(row), ["LONG"] * len(row), [row], False), "p", 5)
         self.executed.append(sql)
         if sql not in ROWS:
             raise QueryError("Warehouse: [UNRESOLVED_COLUMN] bad column")
@@ -103,6 +108,11 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("order_date >= CAST('2017-01-01' AS DATE)", r.state.applied_filters)
         self.assertEqual([s.table for s in r.sources], [TABLE])
         self.assertEqual(r.auth.mode, "service_principal")
+        self.assertEqual(r.sources[0].row_count, 9994)
+        self.assertEqual(r.sources[0].date_range, ["2014-01-03", "2017-12-30"])
+        context = json.loads(models.seen[0][1].split("<context>")[1].split("</context>")[0])
+        self.assertEqual(context["tables"][0]["grain"], "one row per order line (order_id, product_id)")
+        self.assertEqual(context["tables"][0]["profile"]["rows"], 9994)
 
     def test_invented_number_is_vetoed_even_when_reviewer_approves(self):
         bad = {**GOOD, "draft_answer": "West led with $999,999.00."}
@@ -113,7 +123,7 @@ class OrchestratorTests(unittest.TestCase):
 
     def test_causal_claim_is_vetoed(self):
         checks = grounding.check(grounding.ProposalPayload(query_id="q", sql=SQL, draft_answer="West led because of marketing."),
-                                 FakeData().execute(SQL).result, False)
+                                 FakeData().execute(SQL).result, [])
         self.assertEqual({c.name: c.status for c in checks}["no_unsupported_causes"], "failed")
 
     def test_reviewer_fix_is_executed(self):

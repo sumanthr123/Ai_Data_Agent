@@ -122,6 +122,11 @@ class ResultPreview(BaseModel):
 class SourceInfo(BaseModel):
     table: str
     updated_at: str | None = None
+    kind: Literal["shared", "upload"] = "shared"
+    row_count: int | None = None
+    date_range: list[str] | None = None
+    warnings: list[str] = []
+    expires_at: str | None = None
 
 
 class AuthContext(BaseModel):
@@ -153,3 +158,75 @@ class AskResponse(BaseModel):
     state: ConversationState
     events: list[StageEvent] = []
     total_ms: int = 0
+
+
+# ---- datasets, profiling and uploads -----------------------------------------------------------------------------
+
+class ColumnProfile(BaseModel):
+    name: str
+    type: str
+    nulls: int = 0
+    null_rate: float = 0.0
+    distinct_approx: int | None = None
+    min: str | None = None
+    max: str | None = None
+    anomalies: list[str] = []
+
+
+class Profile(BaseModel):
+    row_count: int
+    columns: list[ColumnProfile]
+    duplicates: dict[str, int] = {}  # "col_a, col_b" -> rows beyond the first per key (NULL keys not counted)
+    date_range: list[str] | None = None
+    profiled_at: str
+    warnings: list[str] = []
+
+
+class DatasetRecord(BaseModel):
+    dataset: str
+    kind: Literal["shared", "upload"]
+    owner: str | None = None  # user key for uploads; None for shared datasets
+    conversation_id: str | None = None
+    source: str = ""
+    description: str = ""
+    grain: str = ""
+    key_columns: list[str] = []
+    grain_columns: list[str] = []
+    date_column: str | None = None
+    join_keys: dict[str, str] = {}
+    column_descriptions: dict[str, str] = {}
+    original_names: dict[str, str] = {}  # sanitized column -> header as uploaded
+    profile: Profile | None = None
+    warnings: list[str] = []
+    created_at: str | None = None
+    refreshed_at: str | None = None
+    expires_at: str | None = None
+    volume_dir: str | None = None
+
+
+class SheetInfo(BaseModel):
+    name: str
+    rows: int
+    columns: int
+
+
+class ColumnPlan(BaseModel):
+    name: str
+    original: str
+    type: Literal["STRING", "BIGINT", "DOUBLE", "DATE", "TIMESTAMP", "BOOLEAN"]
+    notes: list[str] = []
+
+
+class UploadResult(BaseModel):
+    status: Literal["INGESTED", "NEEDS_SHEET"]
+    dataset: str | None = None
+    file_name: str
+    sheet: str | None = None
+    sheets: list[SheetInfo] = []
+    columns: list[ColumnPlan] = []
+    row_count: int = 0
+    rejected_rows: list[int] = []  # source line numbers with the wrong number of fields
+    rejected_row_count: int = 0
+    warnings: list[str] = []
+    profile: Profile | None = None
+    expires_at: str | None = None

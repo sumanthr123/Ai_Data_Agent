@@ -44,7 +44,7 @@ def summary(result: ResultSet, max_rows: int, max_chars: int = 5000) -> str:
         rows = rows[: max(5, len(rows) * 2 // 3)]
 
 
-def check(proposal: ProposalPayload, result: ResultSet, has_join: bool) -> list[DeterministicCheck]:
+def check(proposal: ProposalPayload, result: ResultSet, join_checks: list[DeterministicCheck]) -> list[DeterministicCheck]:
     checks = [DeterministicCheck(name="sql_policy", status="passed", detail="Read-only query over approved tables.")]
     checks.append(DeterministicCheck(name="non_empty", status="warning" if result.row_count == 0 else "passed",
                                      detail="The query returned no rows." if result.row_count == 0 else f"{result.row_count:,} rows."))
@@ -58,8 +58,7 @@ def check(proposal: ProposalPayload, result: ResultSet, has_join: bool) -> list[
     checks.append(DeterministicCheck(
         name="no_unsupported_causes", status="failed" if causal else "passed",
         detail=f"Causal wording in the answer: {', '.join(causal)}. Reasons belong in hypotheses." if causal else "No causes stated as fact."))
-    if has_join:  # join cardinality profiling arrives with the ingestion phase
-        checks.append(DeterministicCheck(name="join_cardinality", status="warning", detail="Join fan-out wasn't checked automatically."))
+    checks += join_checks  # measured before the query ran (joins.py); unsafe joins never reach this point
     return checks
 
 
