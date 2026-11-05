@@ -290,6 +290,15 @@ class JoinTests(unittest.TestCase):
         self.assertEqual(checks[0].status, "warning")
 
 
+class RegistryTests(unittest.TestCase):
+    def test_listing_sees_uploads_from_other_workers_at_once(self):
+        runner = FakeRunner()
+        worker_a, worker_b = Registry(CFG, runner, refresh_s=3600), Registry(CFG, runner, refresh_s=3600)
+        worker_b.visible("u1")  # warms B's cache before the upload exists
+        worker_a.save(DatasetRecord(dataset="ai_data_agent.user_uploads.u_1", kind="upload", owner="u1"))
+        self.assertIn("ai_data_agent.user_uploads.u_1", [r.dataset for r in worker_b.visible("u1")])
+
+
 class IsolationTests(unittest.TestCase):
     def test_other_users_upload_is_not_queryable(self):
         runner = FakeRunner()

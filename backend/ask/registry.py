@@ -102,7 +102,7 @@ WHEN NOT MATCHED THEN INSERT *""", {"dataset": record.dataset, "owner": record.o
         return bool(record and (record.kind == "shared" or record.owner == user_key))
 
     def visible(self, user_key: str) -> list[DatasetRecord]:
-        self._reload()
+        self._reload(force=True)  # a listing must include an upload another worker registered a moment ago
         mine = [r for r in self._uploads.values() if r.owner == user_key and not self._expired(r)]
         return list(self.shared.values()) + sorted(mine, key=lambda r: r.created_at or "", reverse=True)
 

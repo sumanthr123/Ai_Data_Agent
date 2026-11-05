@@ -112,11 +112,11 @@ export default function AssistantApp() {
       const list = await listDatasets()
       setDatasets(list)
       setLoadError(null)
-      if (select) a.setDatasets([...new Set([...(a.active?.datasets ?? []), select])])
+      if (select) a.setDatasets([...new Set([...(a.active?.datasets ?? defaults), select])])
     } catch (err) {
       setLoadError((err as Error).message)
     }
-  }, [a])
+  }, [a, defaults])
 
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
