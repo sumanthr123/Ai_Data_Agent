@@ -22,6 +22,7 @@ What the UI shows must stay truthful: stages are emitted only when they run; exe
 grounding are separate `Check`s; model agreement is never presented as correctness, and there's no confidence %.
 
 ## Governed /api/ask (see ARCHITECTURE.md)
+The UI at `/` is `frontend/src/assistant/` (streams `/api/ask/stream`); the classic council chat is `/council`.
 `backend/ask/`: Analyst (Gemini) proposes SQL and drafts, an independent Reviewer (GPT-OSS, a different family) can
 veto, and an Adjudicator runs only for disputes left after one correction. Deterministic checks (`grounding.py`)
 veto too; `verification.reviewed` is true only when the Reviewer approved and every check passed. Budgets
@@ -38,7 +39,7 @@ untrusted evidence; uncited figures are flagged. If search fails, the app says s
 ## Tests
 ```bash
 .venv/bin/python -m unittest discover -s backend/tests -t .   # backend (fake models, warehouse and search)
-cd frontend && node --test src/lib/markdown.test.ts             # safe links and citations
+cd frontend && node --test src/lib/markdown.test.ts src/assistant/format.test.ts   # links, citations, SQL layout
 ```
 
 ## Commands

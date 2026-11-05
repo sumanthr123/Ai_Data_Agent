@@ -404,6 +404,15 @@ class IngestionService:
                 self.w.files.delete_directory(directory)
             except Exception as exc:
                 logger.info("Cleanup of %s: %s", directory, exc)
+            parent = directory
+            for _ in range(2):  # the conversation and user folders, only once they're empty
+                parent = parent.rsplit("/", 1)[0]
+                try:
+                    if any(True for _ in self.w.files.list_directory_contents(parent)):
+                        break
+                    self.w.files.delete_directory(parent)
+                except Exception:
+                    break
 
 
 def register_volume_csv(cfg: AskSettings, run: Callable[..., Execution], path: str) -> tuple[str, int]:

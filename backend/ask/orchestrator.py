@@ -16,7 +16,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol, TypeVar
+from typing import Any, Callable, Literal, Protocol, TypeVar
 
 from databricks.sdk import WorkspaceClient
 from pydantic import BaseModel, ValidationError
@@ -87,10 +87,11 @@ def _data(kind: str, text: str) -> str:
 class Orchestrator:
     def __init__(self, cfg: AskSettings, data: DataAccess, llm: ModelClient, auth: AuthContext, auth_key: str,
                  cache: ResultCache, tracer: Tracer, cancelled: threading.Event | None = None, registry: Registry | None = None,
-                 user_key: str = "local-user") -> None:
+                 user_key: str = "local-user", on_event: Callable[[StageEvent], None] | None = None) -> None:
         self.cfg, self.data, self.llm, self.auth, self.auth_key, self.cache, self.tracer = cfg, data, llm, auth, auth_key, cache, tracer
         self.cancelled = cancelled or threading.Event()
         self.registry, self.user_key = registry or Registry(cfg, None), user_key
+        self.on_event = on_event
         self.meta: dict[str, list[ColumnNode]] = {}
         self.join_checks: list[DeterministicCheck] = []
         self.budget = Budget(cfg.max_model_calls, cfg.max_total_tokens, cfg.max_sql_attempts)
@@ -124,6 +125,7 @@ class Orchestrator:
     async def _run(self, req: AskRequest, state: ConversationState) -> AskResponse:
         cfg = self.cfg
         datasets = list(dict.fromkeys(d.strip().lower() for d in (req.datasets or state.active_datasets or [cfg.default_dataset])))
+        self._running("context")
         mark = time.monotonic()
         denied = "Couldn't open {}: it doesn't exist or you don't have access."
         readable = [await asyncio.to_thread(self.registry.can_read, d, self.user_key) for d in datasets]
@@ -156,6 +158,7 @@ class Orchestrator:
             context["previous"] = {"question": state.last_question, "sql": state.last_sql, "filters": state.applied_filters}
         self._event("context", "succeeded", mark, f"{len(tables)} table(s)")
 
+        self._running("generate_sql")
         mark = time.monotonic()
         plan = await self._call("analyst", "plan", prompts.ANALYST_PLAN, self._user(context, question), AnalystPlan, cfg.analyst_max_out)
         self.verification.analyst = "OK"
@@ -188,6 +191,7 @@ class Orchestrator:
         earlier: tuple[ProposalPayload, Execution] | None = None
 
         if rejected:  # one correction cycle
+            self._running("correct")
             mark = time.monotonic()
             self.verification.correction_cycles = 1
             issues = review.issues + grounding.failures_as_issues(checks)
@@ -250,6 +254,7 @@ class Orchestrator:
         self.budget.reserve_sql()
         self.verification.sql_attempts = self.budget.sql
         self._check_cancelled()
+        self._running("execute")
         mark = time.monotonic()
         with self.tracer.span("sql", "TOOL", {"sql": sql}) as span:
             try:
@@ -285,6 +290,7 @@ class Orchestrator:
         return guarded, run
 
     async def _draft(self, context: dict[str, Any], question: str, sql: str, assumptions: list[str], issues: list[Issue]) -> ProposalPayload:
+        self._running("draft")
         mark = time.monotonic()
         extra: dict[str, Any] = {"sql": sql, "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model))}
         if issues:
@@ -295,6 +301,7 @@ class Orchestrator:
         return ProposalPayload(query_id=uuid.uuid4().hex[:12], sql=sql, assumptions=assumptions, **draft.model_dump())
 
     async def _review(self, context: dict[str, Any], question: str, checks: list[DeterministicCheck]) -> ReviewPayload:
+        self._running("review")
         mark = time.monotonic()
         if self.reviewer_down:
             self._event("review", "skipped", mark, "Reviewer unavailable")
@@ -317,6 +324,7 @@ class Orchestrator:
 
     async def _adjudicate(self, context: dict[str, Any], question: str, state: ConversationState,
                           earlier: tuple[ProposalPayload, Execution] | None, allowed: set[str]) -> AskResponse:
+        self._running("adjudicate")
         mark = time.monotonic()
         versions = [p for p in (earlier, (self.proposal, self.execution)) if p]
         if len(versions) == 2 and versions[0][0].query_id == versions[1][0].query_id:
@@ -446,7 +454,15 @@ class Orchestrator:
         self.verification.calls.append(call)
 
     def _event(self, stage: str, status: str, since: float, detail: str = "") -> None:
-        self.events.append(StageEvent(stage=stage, status=status, ms=int((time.monotonic() - since) * 1000), detail=detail))
+        event = StageEvent(stage=stage, status=status, ms=int((time.monotonic() - since) * 1000), detail=detail)
+        self.events.append(event)
+        if self.on_event:
+            self.on_event(event)
+
+    def _running(self, stage: str) -> None:
+        """Streamed only, so the UI can show which step is in progress; not kept in the response."""
+        if self.on_event:
+            self.on_event(StageEvent(stage=stage, status="running"))
 
     def _check_cancelled(self) -> None:
         if self.cancelled.is_set():

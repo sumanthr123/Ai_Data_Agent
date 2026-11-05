@@ -3,25 +3,35 @@
 from __future__ import annotations
 
 import asyncio
+import csv
+import datetime as dt
+import io
+import json
 import logging
+import re
 import threading
 from functools import lru_cache
 
 from databricks.sdk import WorkspaceClient
-from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Form, HTTPException, Request, Response, UploadFile
+from sse_starlette.sse import EventSourceResponse
 
 from backend.ask.cache import ResultCache, auth_key
-from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, UploadResult
+from backend.ask import profiling, sql_guard
+from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, ExportRequest, UploadResult
 from backend.ask.ingest import IngestionService, UploadRejected, user_key
 from backend.ask.models import ServingClient
 from backend.ask.orchestrator import DatabricksData, Orchestrator
 from backend.ask.registry import Registry
 from backend.ask.settings import ConfigError, ask_settings
 from backend.ask.tracing import Tracer
-from backend.ask.warehouse import Execution, execute
+from backend.ask.warehouse import Execution, QueryError, execute
+from backend.schemas import ColumnNode
 from backend.services.databricks_engine import _plain_error
+from backend.services.sql_safety import UnsafeSqlError
 
 logger = logging.getLogger("ask.api")
+_NUMBER = re.compile(r"^-?\d[\d,]*(\.\d+)?([eE][+-]?\d+)?$")
 router = APIRouter(prefix="/api")
 _cache = ResultCache(ask_settings.cache_ttl_s)
 _tracer = Tracer(ask_settings.mlflow_experiment)
@@ -83,17 +93,22 @@ async def _watch_disconnect(request: Request, cancelled: threading.Event, done: 
         await asyncio.sleep(0.5)
 
 
-@router.post("/ask", response_model=AskResponse)
-async def ask(body: AskRequest, request: Request) -> AskResponse:
+def _orchestrator(request: Request, cancelled: threading.Event, on_event=None) -> Orchestrator:
     try:
         ask_settings.check()
     except ConfigError as exc:
         raise HTTPException(503, f"Misconfigured: {exc}") from exc
     data_w, auth, token = _clients(request)
-    cancelled, done = threading.Event(), asyncio.Event()
     # Models are called as the app (users don't need endpoint access); data is read with the caller's credentials.
-    orchestrator = Orchestrator(ask_settings, DatabricksData(data_w, ask_settings, cancelled), ServingClient(WorkspaceClient(), ask_settings.efforts()),
-                                auth, auth_key(token), _cache, _tracer, cancelled, registry=registry(), user_key=user_key(_principal(request)))
+    return Orchestrator(ask_settings, DatabricksData(data_w, ask_settings, cancelled), ServingClient(_app_client(), ask_settings.efforts()),
+                        auth, auth_key(token), _cache, _tracer, cancelled, registry=registry(), user_key=user_key(_principal(request)),
+                        on_event=on_event)
+
+
+@router.post("/ask", response_model=AskResponse)
+async def ask(body: AskRequest, request: Request) -> AskResponse:
+    cancelled, done = threading.Event(), asyncio.Event()
+    orchestrator = _orchestrator(request, cancelled)
     watcher = asyncio.create_task(_watch_disconnect(request, cancelled, done))
     try:
         return await asyncio.wait_for(orchestrator.run(body), ask_settings.request_timeout_s)
@@ -108,10 +123,97 @@ async def ask(body: AskRequest, request: Request) -> AskResponse:
         watcher.cancel()
 
 
+@router.post("/ask/stream")
+async def ask_stream(body: AskRequest, request: Request) -> EventSourceResponse:
+    """Server-sent events: `stage` (running/succeeded/failed per step) as they happen, then one `result` or `error`.
+    Closing the connection cancels the run, including the warehouse statement."""
+    cancelled, queue = threading.Event(), asyncio.Queue()
+    orchestrator = _orchestrator(request, cancelled, on_event=queue.put_nowait)
+
+    async def events():
+        task = asyncio.create_task(asyncio.wait_for(orchestrator.run(body), ask_settings.request_timeout_s))
+        try:
+            while not task.done():
+                getter = asyncio.ensure_future(queue.get())
+                done, _ = await asyncio.wait({task, getter}, return_when=asyncio.FIRST_COMPLETED)
+                if getter in done:
+                    yield {"event": "stage", "data": getter.result().model_dump_json()}
+                else:
+                    getter.cancel()
+            while not queue.empty():
+                yield {"event": "stage", "data": queue.get_nowait().model_dump_json()}
+            try:
+                yield {"event": "result", "data": task.result().model_dump_json()}
+            except asyncio.TimeoutError:
+                yield {"event": "error", "data": json.dumps({"message": f"The question took longer than {ask_settings.request_timeout_s}s and was stopped."})}
+            except Exception as exc:
+                logger.exception("ask stream failed")
+                yield {"event": "error", "data": json.dumps({"message": f"Something went wrong: {_plain_error(exc)}"})}
+        finally:
+            cancelled.set()  # client went away or we finished: stop model calls and the warehouse statement
+            task.cancel()
+
+    return EventSourceResponse(events())
+
+
+@router.post("/ask/export")
+async def export_csv(body: ExportRequest, request: Request) -> Response:
+    """Full result as CSV, re-run with the caller's credentials after the same access and SQL checks as /api/ask."""
+    data_w, _, _ = _clients(request)
+    owner = user_key(_principal(request))
+    datasets = [d.lower() for d in body.datasets] or [ask_settings.default_dataset.lower()]
+    if not all(registry().can_read(d, owner) for d in datasets):
+        raise HTTPException(404, "Dataset not found or not available to you.")
+    try:
+        guarded = sql_guard.guard(body.sql, set(datasets))
+        run = await asyncio.to_thread(execute, data_w, guarded.sql, warehouse_id=ask_settings.warehouse_id, timeout_s=ask_settings.statement_timeout_s,
+                                      row_limit=ask_settings.export_max_rows, byte_limit=ask_settings.statement_byte_limit)
+    except UnsafeSqlError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except QueryError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(run.result.columns)
+    for row in run.result.rows:
+        writer.writerow([_cell(row.get(c)) for c in run.result.columns])
+    headers = {"Content-Disposition": 'attachment; filename="query-result.csv"', "X-Row-Count": str(run.result.row_count),
+               "X-Truncated": str(run.result.truncated).lower()}
+    return Response(out.getvalue(), media_type="text/csv; charset=utf-8", headers=headers)
+
+
+def _cell(value) -> str:
+    """Spreadsheet-safe: a value starting with = + - @ would run as a formula in Excel, so it gets a leading quote."""
+    if value is None:
+        return ""
+    text = str(value)
+    if text[:1] in ("=", "+", "@", "\t", "\r") or (text[:1] == "-" and not _NUMBER.match(text)):
+        return "'" + text
+    return text
+
+
 @router.get("/ask/datasets", response_model=list[DatasetRecord])
-def datasets(request: Request) -> list[DatasetRecord]:
-    """Shared datasets plus the caller's own uploads (never anyone else's)."""
-    return registry().visible(user_key(_principal(request)))
+async def datasets(request: Request) -> list[DatasetRecord]:
+    """Shared datasets plus the caller's own uploads (never anyone else's), each with its profile and columns."""
+    records = registry().visible(user_key(_principal(request)))
+    return [await asyncio.to_thread(_with_profile, r) if r.kind == "shared" else r for r in records]
+
+
+def _with_profile(record: DatasetRecord) -> DatasetRecord:
+    """Shared datasets are profiled once per table version (SQL, as the app) and cached."""
+    try:
+        table = _app_client().tables.get(record.dataset)
+        version = str(table.updated_at or "")
+        profile = registry().shared_profile(record.dataset, version)
+        if profile is None:
+            columns = [ColumnNode(name=c.name or "", type=c.type_text or "") for c in (table.columns or [])]
+            profile = profiling.profile(_app_run, record.dataset, columns, [k for k in (record.key_columns, record.grain_columns) if k], record.date_column)
+            registry().set_shared_profile(record.dataset, version, profile)
+        refreshed = dt.datetime.fromtimestamp(table.updated_at / 1000, dt.timezone.utc).isoformat(timespec="seconds") if table.updated_at else None
+        return record.model_copy(update={"profile": profile, "refreshed_at": refreshed})
+    except Exception as exc:
+        logger.warning("Profile of %s unavailable: %s", record.dataset, exc)
+        return record
 
 
 @router.post("/ask/uploads", response_model=UploadResult)

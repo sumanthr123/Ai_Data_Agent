@@ -73,6 +73,11 @@ class AskRequest(BaseModel):
     state: ConversationState = ConversationState()
 
 
+class ExportRequest(BaseModel):
+    sql: str = Field(min_length=1, max_length=20000)
+    datasets: list[str] = []
+
+
 class DeterministicCheck(BaseModel):
     name: str
     status: CheckStatus
@@ -136,7 +141,7 @@ class AuthContext(BaseModel):
 
 class StageEvent(BaseModel):
     stage: Literal["context", "clarify", "generate_sql", "execute", "draft", "review", "correct", "adjudicate", "complete"]
-    status: Literal["succeeded", "failed", "skipped"]
+    status: Literal["running", "succeeded", "failed", "skipped"]
     ms: int = 0
     detail: str = ""
 

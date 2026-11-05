@@ -110,6 +110,29 @@ Live (2026-11-05): superstore profiled at 9,994 rows (2014-01-03 to 2017-12-30),
 repeat an (order_id, product_id) pair. An uploaded targets CSV joined to superstore was checked as 1:N, then answered
 and reviewed. Leading-zero codes were kept, one malformed line was reported, and another user got "no access".
 
+## Phase 3: the interface (`frontend/src/assistant/`, served at `/`; the classic council chat is at `/council`)
+
+- **Left:** dataset selector (shared tables and your uploads, with row counts and freshness or expiry), a drag-and-drop
+  or file-picker upload with a sheet picker for workbooks and a summary of every type coercion and rejected row, the
+  schema and profile inspector (types, NULL rates, anomalies, duplicate keys, date range), and conversation history
+  (kept in the browser).
+- **Centre:** starter questions derived from the selected datasets' real columns. Stages stream from
+  `POST /api/ask/stream` (SSE) as they actually run: Profiling → Generating SQL → Executing → Writing →
+  Independent review (→ Correcting / Adjudicating) → Complete. The verdict says "Independently reviewed" only when
+  `verification.reviewed` is true. Then the answer, hypotheses kept separate and labelled unverified, a chart when the
+  result has one dimension (one measure per chart, single axis, linear lines, exact values in the table below), and the
+  table. Stop cancels the run, including the warehouse statement; failures offer Retry; clarifying questions are
+  answered in the same box.
+- **Right (evidence drawer):** Executed SQL with the applied filters and statement id; Sources with freshness, row
+  counts, date range, profile warnings and the auth disclosure; Assumptions and hypotheses; Verification (Analyst,
+  Reviewer and Adjudicator status, every automated check, review notes, and per-call tokens including reasoning, latency
+  and cost). The CSV button calls `POST /api/ask/export`, which re-checks dataset access and the SQL guard, re-runs the
+  query with the caller's credentials (up to `EXPORT_MAX_ROWS`), and escapes cells that a spreadsheet would run as
+  formulas.
+- **Accessibility:** keyboard operable, visible focus, Escape closes overlays, live regions for progress, ARIA
+  tabs, labelled controls, AA-contrast text. Below `lg` the sidebar is an overlay, and below `xl` so is the drawer.
+  No horizontal scroll at 390px.
+
 ## Configuration to decide (non-blocking; placeholders in `.env.example`)
 
 1. **User-scoped access.** Today queries run as the app's service principal, and every response says so
@@ -120,5 +143,4 @@ and reviewed. Leading-zero codes were kept, one malformed line was reported, and
 
 ## Next phases
 
-- **Phase 3:** 3-pane UI on `/api/ask` with streamed stages and the evidence drawer.
 - **Phase 4:** single-model vs debate evaluation suite (`evals/`), UC permissions checklist.

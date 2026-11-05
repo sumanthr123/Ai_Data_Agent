@@ -62,6 +62,7 @@ class AskSettings:
     max_rows_to_model: int = _int("MAX_RESULT_ROWS_TO_MODEL", 50)
     max_answer_words: int = _int("MAX_FINAL_ANSWER_WORDS", 250)
     max_rows_to_ui: int = _int("MAX_RESULT_ROWS_TO_UI", 500)
+    export_max_rows: int = _int("EXPORT_MAX_ROWS", 100_000)
     statement_timeout_s: int = _int("STATEMENT_TIMEOUT_S", 45)
     statement_byte_limit: int = _int("STATEMENT_BYTE_LIMIT", 16 * 1024 * 1024)
     model_timeout_s: int = _int("ASK_MODEL_TIMEOUT_S", 60)
