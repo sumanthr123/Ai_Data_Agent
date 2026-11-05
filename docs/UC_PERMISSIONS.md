@@ -49,7 +49,8 @@ a group), set `USE_USER_TOKEN=true` in `app.yaml`, and redeploy.
 ## 3. Data hygiene
 
 - Upload tables are named `u_<user hash>_<id>`, owned by the app principal, and expire after `UPLOAD_TTL_HOURS` (24).
-  An hourly sweep drops expired tables and their volume folders.
+  A sweep drops expired tables and their volume folders, at most hourly and only while the app is in use (a timer
+  would wake the warehouse when nobody is).
 - `user_uploads.dataset_registry` is app-owned. Don't recreate it as a person; the app couldn't write to it.
 - Raw files are kept under `/Volumes/ai_data_agent/orders/uploads/<user hash>/<conversation>/<upload id>/` until
   the upload expires or the user deletes it.

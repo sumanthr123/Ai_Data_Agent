@@ -330,6 +330,7 @@ class Orchestrator:
             self._event("review", "failed", mark, "Reviewer unavailable; answer not independently reviewed")
             return ReviewPayload(status="DEGRADED")
         self.verification.reviewer = review.status
+        self.verification.open_issues = review.issues  # kept if the budget stops the run later
         self._event("review", "succeeded", mark, review.status)
         return review
 

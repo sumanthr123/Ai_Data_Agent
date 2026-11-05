@@ -69,7 +69,7 @@ class ConversationState(BaseModel):
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
-    datasets: list[str] = []
+    datasets: list[str] = Field(default=[], max_length=10)
     state: ConversationState = ConversationState()
 
 

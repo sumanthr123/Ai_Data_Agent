@@ -92,8 +92,8 @@ WHEN NOT MATCHED THEN INSERT *""", {"dataset": record.dataset, "owner": record.o
         if name in self.shared:
             return self.shared[name]
         self._reload()
-        if name not in self._uploads:
-            self._reload(force=True)  # registered by another worker a moment ago
+        if name not in self._uploads and time.monotonic() - self._loaded_at > 2:
+            self._reload(force=True)  # registered by another worker a moment ago; throttled so unknown names can't each cost a query
         record = self._uploads.get(name)
         return None if record is None or self._expired(record) else record
 

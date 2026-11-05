@@ -299,6 +299,26 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("ai_data_agent.user_uploads.u_1", [r.dataset for r in worker_b.visible("u1")])
 
 
+    def test_unknown_dataset_names_dont_each_cost_a_query(self):
+        registry = Registry(CFG, FakeRunner(), refresh_s=3600)
+        registry.visible("u1")
+        with unittest.mock.patch.object(registry, "_run", wraps=registry._run) as run:
+            for i in range(50):
+                self.assertIsNone(registry.get(f"ai_data_agent.user_uploads.nope_{i}"))
+        self.assertEqual(run.call_count, 0)
+
+    def test_request_dataset_list_is_capped(self):
+        with self.assertRaises(ValueError):
+            AskRequest(question="q", datasets=[f"t{i}" for i in range(11)])
+
+    def test_expired_uploads_are_swept_at_most_hourly_and_only_on_use(self):
+        from backend.routers import ask as router
+        with unittest.mock.patch.object(router, "_swept_at", float("-inf")), unittest.mock.patch.object(router.threading, "Thread") as thread:
+            router.sweep_expired()
+            router.sweep_expired()
+        self.assertEqual(thread.call_count, 1)
+
+
 class IsolationTests(unittest.TestCase):
     def test_other_users_upload_is_not_queryable(self):
         runner = FakeRunner()

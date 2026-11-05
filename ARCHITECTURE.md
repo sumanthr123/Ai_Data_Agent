@@ -88,7 +88,7 @@ POST /api/ask/uploads (CSV/TSV/XLSX, conversation_id, sheet?)          ingest.py
   table: CREATE TABLE <catalog>.user_uploads.u_<user>_<id> AS SELECT CAST(...) FROM read_files(data.csv, FAILFAST)
          → row count verified (else dropped and rolled back) → profiled in SQL → registered with owner and TTL
 GET  /api/ask/datasets            shared datasets + the caller's own uploads
-DELETE /api/ask/uploads/{name}    owner only; expired uploads are invisible at once and dropped by an hourly sweep
+DELETE /api/ask/uploads/{name}    owner only; expired uploads are invisible at once and dropped by a sweep (at most hourly, only while the app is in use)
 ```
 
 - **Registry** (`registry.py`): shared datasets and their grain, keys and column descriptions in `datasets.json`;

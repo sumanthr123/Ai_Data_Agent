@@ -10,6 +10,7 @@ import json
 import logging
 import re
 import threading
+import time
 from functools import lru_cache
 
 from databricks.sdk import WorkspaceClient
@@ -64,16 +65,28 @@ def ingestion() -> IngestionService:
     return IngestionService(_app_client(), ask_settings, registry(), _app_run)
 
 
-def cleanup_loop(stop: threading.Event, every_s: int = 3600) -> None:
-    """Drop expired uploads (tables, files, registry rows) at startup and then hourly."""
-    while not stop.is_set():
-        try:
-            removed = ingestion().cleanup_expired()
-            if removed:
-                logger.info("Removed %d expired upload(s)", removed)
-        except Exception as exc:
-            logger.warning("Upload cleanup failed: %s", exc)
-        stop.wait(every_s)
+_swept_at = float("-inf")
+_sweep_lock = threading.Lock()
+
+
+def sweep_expired(every_s: int = 3600) -> None:
+    """Drop expired uploads (tables, files, registry rows) at most hourly, and only while the app is in use: a timer
+    would wake the SQL warehouse when nobody is. Expired uploads are hidden from listings and queries meanwhile."""
+    global _swept_at
+    with _sweep_lock:
+        if time.monotonic() - _swept_at < every_s:
+            return
+        _swept_at = time.monotonic()
+    threading.Thread(target=_sweep, daemon=True, name="upload-cleanup").start()
+
+
+def _sweep() -> None:
+    try:
+        removed = ingestion().cleanup_expired()
+        if removed:
+            logger.info("Removed %d expired upload(s)", removed)
+    except Exception as exc:
+        logger.warning("Upload cleanup failed: %s", exc)
 
 
 def _clients(request: Request) -> tuple[WorkspaceClient, AuthContext, str | None]:
@@ -196,6 +209,7 @@ def _cell(value) -> str:
 async def datasets(request: Request) -> list[DatasetRecord]:
     """Shared datasets plus the caller's own uploads (never anyone else's), each with its profile and columns."""
     records = registry().visible(user_key(_principal(request)))
+    sweep_expired()  # the listing just woke the warehouse anyway
     return [await asyncio.to_thread(_with_profile, r) if r.kind == "shared" else r for r in records]
 
 
