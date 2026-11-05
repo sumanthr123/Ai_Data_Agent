@@ -189,11 +189,19 @@ class Orchestrator:
         if self.cfg.review_mode == "single":  # baseline: checks are reported but nothing reviews or corrects the answer
             self.verification.checks = checks
             return self._answer(state, question, self.proposal.draft_answer)
+        earlier: tuple[ProposalPayload, Execution] | None = None
+        if any(c.status == "failed" for c in checks):  # the correction cycle, before review: the Reviewer then runs once
+            self._running("correct")
+            mark = time.monotonic()
+            self.verification.correction_cycles = 1
+            earlier = (self.proposal, self.execution)
+            self._event("correct", "succeeded", mark)
+            self.proposal = await self._draft(context, question, guarded.sql, assumptions, grounding.failures_as_issues(checks))
+            checks = grounding.check(self.proposal, self.execution.result, self.join_checks)
         review = await self._review(context, question, checks)
         rejected = self._rejected(review, checks)
-        earlier: tuple[ProposalPayload, Execution] | None = None
 
-        if rejected:  # one correction cycle
+        if rejected and not self.verification.correction_cycles:  # one correction cycle
             self._running("correct")
             mark = time.monotonic()
             self.verification.correction_cycles = 1

@@ -127,6 +127,7 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(r.verification.correction_cycles, 1)
         self.assertEqual(r.answer, GOOD["draft_answer"])
         self.assertTrue(r.verification.reviewed)
+        self.assertEqual([c.purpose for c in r.verification.calls], ["plan", "draft", "revise", "review"])  # Reviewer runs once
 
     def test_causal_claim_is_vetoed(self):
         checks = grounding.check(grounding.ProposalPayload(query_id="q", sql=SQL, draft_answer="West led because of marketing."),
