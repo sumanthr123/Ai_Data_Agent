@@ -35,7 +35,6 @@ from backend.services import analysis, availability, compare, validation, web_se
 from backend.services.sql_safety import UnsafeSqlError, referenced_tables, validate
 
 logger = logging.getLogger("consensus.engine")
-_NUMERIC = {"BYTE", "SHORT", "INT", "LONG", "FLOAT", "DOUBLE", "DECIMAL"}
 UPSTREAM = json.loads(os.getenv("LINEAGE_UPSTREAM", json.dumps({
     "ai_data_agent.orders.superstore": ["/Volumes/ai_data_agent/orders/data_agnet/sample_superstore_.csv"],
 })))
@@ -536,18 +535,7 @@ class LiveEngine:
         cols = response.manifest.schema.columns if response.manifest and response.manifest.schema else []
         names = [c.name for c in cols]
         types = [str(c.type_name.value if c.type_name else c.type_text) for c in cols]
-        rows = []
-        for record in (response.result.data_array if response.result and response.result.data_array else []):
-            row = {}
-            for name, typ, value in zip(names, types, record):
-                if value is not None and typ.upper() in ("TIMESTAMP", "TIMESTAMP_NTZ", "DATE") and re.match(r"^\d{4}-\d{2}-\d{2}T00:00:00(\.0+)?Z?$", value):
-                    row[name] = value[:10]  # Midnight timestamps read better as dates.
-                elif value is not None and typ.upper() in _NUMERIC:
-                    number = float(value)
-                    row[name] = int(number) if typ.upper() in ("BYTE", "SHORT", "INT", "LONG") else number
-                else:
-                    row[name] = value
-            rows.append(row)
+        rows = analysis.typed_rows(names, types, response.result.data_array if response.result and response.result.data_array else [])
         truncated = bool(response.manifest and response.manifest.truncated)
         return analysis.shape(names, types, rows, truncated), response.statement_id, int((time.monotonic() - started) * 1000)
 

@@ -21,6 +21,13 @@ and the compiled React UI (`frontend/dist`). Deployed as the Databricks App `con
 What the UI shows must stay truthful: stages are emitted only when they run; execution, agreement, validation and
 grounding are separate `Check`s; model agreement is never presented as correctness, and there's no confidence %.
 
+## Governed /api/ask (see ARCHITECTURE.md)
+`backend/ask/`: Analyst (Gemini) proposes SQL and drafts, an independent Reviewer (GPT-OSS, a different family) can
+veto, and an Adjudicator runs only for disputes left after one correction. Deterministic checks (`grounding.py`)
+veto too; `verification.reviewed` is true only when the Reviewer approved and every check passed. Budgets
+(calls, tokens incl. reasoning, SQL attempts) are enforced in `budget.py` before each call. Keep runtime prompts in
+`prompts.py` short; never paste build specs into them.
+
 ## Live information
 Questions about current events, weather or prices are flagged by the council (`needs_web`). The app
 runs one Gemini Google Search over HTTPS (`backend/services/web_search.py`, key `GEMINI_API_KEY` from

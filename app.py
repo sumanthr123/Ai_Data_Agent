@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import settings
-from backend.routers import catalog, consensus
+from backend.routers import ask, catalog, consensus
 from backend.services import availability
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -32,6 +32,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Consensus AI Data Agent", docs_url="/api/docs", openapi_url="/api/openapi.json", lifespan=lifespan)
 app.include_router(consensus.router)
+app.include_router(ask.router)
 app.include_router(catalog.router)
 
 DIST = Path(__file__).parent / "frontend" / "dist"

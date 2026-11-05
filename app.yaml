@@ -25,3 +25,27 @@ env:
     value: "council"
   - name: USE_USER_TOKEN
     value: "false"
+  # /api/ask: governed Analyst -> Reviewer -> Adjudicator pipeline (distinct model families; see ARCHITECTURE.md).
+  - name: DEFAULT_DATASET_SOURCE
+    value: "ai_data_agent.orders.superstore"
+  - name: UC_SCHEMA
+    value: "orders"
+  - name: UC_UPLOAD_VOLUME
+    value: "uploads"
+  - name: ANALYST_MODEL_ENDPOINT
+    value: "gemini-3-5-flash"
+  - name: REVIEWER_MODEL_ENDPOINT
+    value: "databricks-gpt-oss-120b"
+  # Higher-tier Gemini until the Anthropic account has credits; then claude-sonnet-5-5/claude-sonnet-5-5.
+  - name: ADJUDICATOR_MODEL_ENDPOINT
+    value: "gemini-3-5-flash/gemini-pro-latest"
+  - name: MAX_MODEL_CALLS_PER_QUESTION
+    value: "6"
+  - name: MAX_SQL_ATTEMPTS
+    value: "3"
+  - name: MAX_TOTAL_MODEL_TOKENS
+    value: "12000"
+  - name: MAX_RESULT_ROWS_TO_MODEL
+    value: "50"
+  - name: MAX_FINAL_ANSWER_WORDS
+    value: "250"

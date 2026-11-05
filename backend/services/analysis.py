@@ -13,6 +13,25 @@ LANE_COLORS = ["#38BDF8", "#F59E0B", "#10B981", "#A78BFA"]
 # A whole-word time column (month, order_date, year_num), not a measure like monthly_sales.
 _TIME = re.compile(r"(^|_)(date|month|year|quarter|week|day|period|ts|time)(_(num|number|no|idx|name))?$", re.I)
 _ID = re.compile(r"(^id$|_id$|postal|zip)", re.I)
+_NUMERIC = {"BYTE", "SHORT", "INT", "LONG", "FLOAT", "DOUBLE", "DECIMAL"}
+_MIDNIGHT = re.compile(r"^\d{4}-\d{2}-\d{2}T00:00:00(\.0+)?Z?$")
+
+
+def typed_rows(names: list[str], types: list[str], data: list[list[Any]]) -> list[dict[str, Any]]:
+    """Warehouse JSON_ARRAY rows as dicts: numbers typed by column type, strings (incl. leading zeros) kept as-is."""
+    rows = []
+    for record in data:
+        row: dict[str, Any] = {}
+        for name, typ, value in zip(names, types, record):
+            if value is not None and typ.upper() in ("TIMESTAMP", "TIMESTAMP_NTZ", "DATE") and _MIDNIGHT.match(value):
+                row[name] = value[:10]  # Midnight timestamps read better as dates.
+            elif value is not None and typ.upper() in _NUMERIC:
+                number = float(value)
+                row[name] = int(number) if typ.upper() in ("BYTE", "SHORT", "INT", "LONG") else number
+            else:
+                row[name] = value
+        rows.append(row)
+    return rows
 
 
 def result_hash(result: ResultSet | None) -> str | None:
