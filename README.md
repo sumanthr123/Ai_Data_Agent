@@ -1,20 +1,57 @@
-# Consensus AI Data Agent
+# AI Data Assistant (Databricks App)
 
-Databricks App that answers questions about `ai_data_agent.orders.superstore` data, live web and general topics by asking a council of models (Gemini, GPT-OSS, Claude) in parallel, checking their SQL results against each other and the question, and writing a cited answer.
+Business users ask questions about Unity Catalog tables and their own CSV/XLSX uploads. Every number comes from an
+executed Databricks SQL query. An Analyst model writes the SQL and the answer, and an independent Reviewer from a
+different model family can veto it. Deterministic checks (grounded numbers, no causes stated as fact, join fan-out,
+read-only SQL) veto too. An Adjudicator settles disputes that remain after one correction.
 
-## Quick start
+- `/`: the assistant (datasets and uploads · conversation with streamed steps · evidence drawer)
+- `/council`: the classic multi-model chat (council answers, live web search)
+
+Design: [ARCHITECTURE.md](ARCHITECTURE.md) · Permissions: [docs/UC_PERMISSIONS.md](docs/UC_PERMISSIONS.md) ·
+Evaluation: [evals/REPORT.md](evals/REPORT.md) · Contributor notes: [CLAUDE.md](CLAUDE.md)
+
+## Run locally
+
 ```bash
 python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 cd frontend && npm install && npm run build && cd ..
-MOCK_MODE=true uvicorn app:app --port 8000        # demo mode, no workspace calls
-DATABRICKS_CONFIG_PROFILE=<profile> MOCK_MODE=false uvicorn app:app --port 8000   # live
+cp .env.example .env    # fill in placeholders; never commit .env
+DATABRICKS_CONFIG_PROFILE=<profile> DATABRICKS_WAREHOUSE_ID=<id> uvicorn app:app --port 8000
 ```
+
+Locally, queries run as your CLI identity. The app's registry table belongs to the app principal, so local uploads fail
+unless you point `UC_UPLOAD_SCHEMA` at a schema you own.
+
+## Test
+
+```bash
+.venv/bin/python -m unittest discover -s backend/tests -t .                                  # backend: fake models and warehouse
+cd frontend && node --test src/lib/markdown.test.ts src/assistant/format.test.ts && npm run build
+```
+
+## Evaluate (live models and warehouse)
+
+```bash
+DATABRICKS_CONFIG_PROFILE=<profile> DATABRICKS_WAREHOUSE_ID=<id> .venv/bin/python -m evals.run_evals   # ~15 min
+.venv/bin/python -m evals.run_evals --only 1,7                                                        # some categories
+```
+
+This compares the full pipeline (`REVIEW_MODE=debate`) with the Analyst alone (`REVIEW_MODE=single`) on the same
+cases in 10 categories. Expected values come from SQL in the script. It writes `evals/REPORT.md` and
+`evals/results/*.json`. Fixture tables (`eval_*`) are created in the uploads schema and dropped afterwards.
 
 ## Deploy
-```bash
-databricks workspace import-dir . /Workspace/Users/<you>/consensus-agent-src --overwrite
-databricks apps deploy ai-data-agent --source-code-path /Workspace/Users/<you>/consensus-agent-src
-```
-Secrets: store the Gemini key as the Databricks secret referenced in `app.yaml`; never commit keys.
 
-See `CLAUDE.md` for architecture, tests and rules.
+Production is the app `ai-data-agent`. Before each deploy, back up the deployed source. Then:
+
+```bash
+SRC=/Workspace/Users/<you>/consensus-agent-src
+databricks workspace export-dir $SRC ./backup-$(date +%Y%m%d-%H%M%S)       # rollback copy
+git archive HEAD | tar -x -C /tmp/release && cp -R frontend/dist /tmp/release/frontend/
+databricks workspace import-dir /tmp/release $SRC --overwrite
+databricks apps deploy ai-data-agent --source-code-path $SRC
+```
+
+Configuration is in `app.yaml` (see `.env.example` for every variable). Secrets come from secret scopes through
+`valueFrom`, never as plain values. Unity Catalog setup is in [docs/UC_PERMISSIONS.md](docs/UC_PERMISSIONS.md).

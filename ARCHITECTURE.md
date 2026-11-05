@@ -141,6 +141,29 @@ and reviewed. Leading-zero codes were kept, one malformed line was reported, and
 2. **Adjudicator.** Gemini Pro Latest now; switch to Claude when credits are added.
 3. **MLflow experiment path** for traces (`MLFLOW_EXPERIMENT`), and per-endpoint prices for cost estimates.
 
-## Next phases
+## Phase 4: evaluation (`evals/run_evals.py`, report in `evals/REPORT.md`)
 
-- **Phase 4:** single-model vs debate evaluation suite (`evals/`), UC permissions checklist.
+The same cases run through the full pipeline (`REVIEW_MODE=debate`) and through the Analyst alone (`single`), with
+live models on the real warehouse. Expected values come from SQL in the script. Reviewer vetoes are tested by injecting
+a fault into the Analyst's real output: a figure inflated by 13.7%, or SUM turned into AVG. Upload handling and
+isolation run through the real ingestion code, volume and warehouse, with an in-memory registry. Fixtures are dropped
+after the run.
+
+Results (2026-11-05, second run, after a one-retry fix for replies that don't match the JSON contract):
+
+| | Debate | Single model |
+|---|---|---|
+| Model cases passed | **19/19** | 16/18 (outage case n/a) |
+| Injected errors caught (category 7) | 2/2, each fixed in one correction | 0/2: the wrong figure or aggregate reached the user |
+| Mean latency | 9.6 s | 5.7 s |
+| Mean tokens / model calls | 3,499 / 3.2 | 2,058 / 1.9 |
+
+What this shows, and what it doesn't:
+- On clean questions (categories 1–3, 5, 10) both modes were correct. The Reviewer's value here is catching errors.
+  It costs about 1.7× the tokens and 1.7× the latency of the Analyst alone.
+- Categories 4, 6 and 9 are enforced in code, so the two modes behave the same.
+- The Adjudicator was never needed: both injected faults were fixed in the single correction cycle. Its paths
+  (resolved, corrective query, unresolved, unavailable) are covered by unit tests, not by this live suite.
+- 19 cases is a small sample, and model output varies from run to run. In the first run, one debate case failed
+  because the Analyst's reply didn't match the JSON contract, not because of the injection; the one-retry fix addressed
+  that. Re-run before relying on these numbers, and add cases from real user questions.

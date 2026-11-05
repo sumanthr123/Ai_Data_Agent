@@ -116,7 +116,7 @@ class Orchestrator:
                 response = self._partial("BUDGET_EXHAUSTED", f"{exc} The answer couldn't be completed and verified.", state)
             except ModelUnavailable as exc:
                 self.verification.analyst = "FAILED"
-                response = self._partial("ERROR", f"The Analyst model couldn't answer: {exc}.", state)
+                response = self._partial("ERROR", f"The Analyst model couldn't answer: {str(exc).rstrip('.')}.", state)
             response.total_ms = int((time.monotonic() - started) * 1000)
             root.set_outputs({"status": response.status, "reviewed": response.verification.reviewed,
                               "tokens": response.verification.total_tokens, "calls": response.verification.total_model_calls})
@@ -186,6 +186,9 @@ class Orchestrator:
 
         self.proposal = await self._draft(context, question, guarded.sql, assumptions, [])
         checks = grounding.check(self.proposal, self.execution.result, self.join_checks)
+        if self.cfg.review_mode == "single":  # baseline: checks are reported but nothing reviews or corrects the answer
+            self.verification.checks = checks
+            return self._answer(state, question, self.proposal.draft_answer)
         review = await self._review(context, question, checks)
         rejected = self._rejected(review, checks)
         earlier: tuple[ProposalPayload, Execution] | None = None
@@ -365,7 +368,7 @@ class Orchestrator:
 
     # ---- model calls -------------------------------------------------------------------------------------------
 
-    async def _call(self, role: Role, purpose: str, role_prompt: str, user: str, contract: type[T], want_output: int) -> T:
+    async def _call(self, role: Role, purpose: str, role_prompt: str, user: str, contract: type[T], want_output: int, retry: bool = True) -> T:
         endpoint = {"analyst": self.cfg.analyst, "reviewer": self.cfg.reviewer, "adjudicator": self.cfg.adjudicator}[role]
         system = f"{prompts.POLICY}\n\n{role_prompt}"
         try:
@@ -393,11 +396,17 @@ class Orchestrator:
             try:
                 parsed = contract.model_validate(_json_block(result.text))
             except (ValueError, ValidationError) as exc:
-                call.status, call.error = "failed", f"Reply didn't match the {contract.__name__} contract."
+                call.status, call.error = "failed", f"Reply didn't match the {contract.__name__} contract"
                 self._record(call)
-                raise ModelUnavailable(call.error) from exc
-            self._record(call)
-            span.set_outputs(parsed.model_dump())
+                if not retry:
+                    raise ModelUnavailable(call.error) from exc
+                parsed = None
+            if parsed is not None:
+                self._record(call)
+                span.set_outputs(parsed.model_dump())
+        if parsed is None:  # one more try, within the same budgets, before giving up
+            return await self._call(role, f"{purpose}_retry", role_prompt, user + "\n\nYour last reply wasn't the requested JSON. "
+                                    "Reply with ONLY that JSON object.", contract, want_output, retry=False)
         return parsed
 
     def _user(self, context: dict[str, Any], question: str) -> str:

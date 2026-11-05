@@ -114,6 +114,13 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(context["tables"][0]["grain"], "one row per order line (order_id, product_id)")
         self.assertEqual(context["tables"][0]["profile"]["rows"], 9994)
 
+    def test_single_model_baseline_skips_review(self):
+        bad = {**GOOD, "draft_answer": "West led with $999,999.00."}
+        r, models, _ = run({CFG.analyst: [PLAN, bad]}, cfg=dataclasses.replace(CFG, review_mode="single"))
+        self.assertEqual((r.status, r.verification.reviewer, r.verification.reviewed), ("ANSWERED", "NOT_RUN", False))
+        self.assertEqual({c.name: c.status for c in r.verification.checks}["numbers_grounded"], "failed")  # reported, not enforced
+        self.assertNotIn(CFG.reviewer, [e for e, _ in models.seen])
+
     def test_invented_number_is_vetoed_even_when_reviewer_approves(self):
         bad = {**GOOD, "draft_answer": "West led with $999,999.00."}
         r, _, _ = run({CFG.analyst: [PLAN, bad, GOOD], CFG.reviewer: [APPROVED, APPROVED]})
@@ -224,9 +231,15 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(data.described, before + 2)  # context load + access re-check for the cached result
 
     def test_invalid_contract_is_an_error_not_a_guess(self):
-        r, _, _ = run({CFG.analyst: [{"status": "MAYBE"}]})
+        r, _, _ = run({CFG.analyst: [{"status": "MAYBE"}, {"status": "STILL NO"}]})
         self.assertEqual(r.status, "ERROR")
-        self.assertEqual(r.verification.calls[0].status, "failed")
+        self.assertEqual([c.status for c in r.verification.calls], ["failed", "failed"])  # one retry, then stop
+        self.assertNotIn("..", r.answer)
+
+    def test_invalid_reply_is_retried_once(self):
+        r, _, _ = run({CFG.analyst: [{"status": "MAYBE"}, PLAN, GOOD], CFG.reviewer: [APPROVED]})
+        self.assertEqual(r.status, "ANSWERED")
+        self.assertEqual([c.purpose for c in r.verification.calls], ["plan", "plan_retry", "draft", "review"])
 
 
 class StreamTests(unittest.TestCase):

@@ -55,6 +55,8 @@ class AskSettings:
     reviewer: str = os.getenv("REVIEWER_MODEL_ENDPOINT", "databricks-gpt-oss-120b")
     adjudicator: str = os.getenv("ADJUDICATOR_MODEL_ENDPOINT", "gemini-3-5-flash/gemini-pro-latest")
     use_user_token: bool = os.getenv("USE_USER_TOKEN", "false").lower() in ("1", "true", "yes")
+    # "debate": Analyst + independent Reviewer (+ Adjudicator). "single": the Analyst alone, the evaluation baseline.
+    review_mode: str = os.getenv("REVIEW_MODE", "debate")
     # Hard budgets per question, enforced in code.
     max_model_calls: int = _int("MAX_MODEL_CALLS_PER_QUESTION", 6)
     max_sql_attempts: int = _int("MAX_SQL_ATTEMPTS", 3)
