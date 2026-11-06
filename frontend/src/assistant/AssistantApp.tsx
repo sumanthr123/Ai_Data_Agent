@@ -1,5 +1,5 @@
 import { AlertTriangle, ArrowUp, CircleCheck, FileSearch, Globe, Menu, PanelRight, RotateCcw, ShieldAlert, Square, X } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Markdown } from '../components/Markdown'
 import { SourceList } from '../components/SourceList'
 import { cn } from '../lib/cn'
@@ -50,7 +50,13 @@ function Verdict({ r }: { r: AskResponse }) {
   return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-300"><AlertTriangle className="h-4 w-4" /> {r.status === 'UNRESOLVED' ? 'Unverified' : 'Stopped at budget'}</span>
 }
 
-function TurnView({ turn, live, onEvidence, onRetry, onCouncil }: { turn: Turn; live: boolean; onEvidence: () => void; onRetry: () => void; onCouncil: () => void }) {
+type TurnAction = 'evidence' | 'retry' | 'council'
+
+/** Memoized: typing in the box or a stage event on the live turn doesn't re-render earlier answers (tables, charts). */
+const TurnView = memo(function TurnView({ turn, live, onAction }: { turn: Turn; live: boolean; onAction: (turn: Turn, action: TurnAction) => void }) {
+  const onEvidence = () => onAction(turn, 'evidence')
+  const onRetry = () => onAction(turn, 'retry')
+  const onCouncil = () => onAction(turn, 'council')
   const r = turn.response
   return (
     <article className="space-y-3">
@@ -107,7 +113,7 @@ function TurnView({ turn, live, onEvidence, onRetry, onCouncil }: { turn: Turn; 
       </div>
     </article>
   )
-}
+})
 
 export default function AssistantApp() {
   const [datasets, setDatasets] = useState<Dataset[]>([])
@@ -158,6 +164,16 @@ export default function AssistantApp() {
     a.ask(text)
     setDraft('')
   }
+  // Stable across renders so memoized turns don't re-render; reads the latest submit/ask through the ref.
+  const latest = useRef({ submit, ask: a.ask })
+  latest.current = { submit, ask: a.ask }
+  const onTurnAction = useCallback((turn: Turn, action: TurnAction) => {
+    if (action === 'evidence') {
+      setEvidenceId(turn.id)
+      setDrawerOpen(true)
+    } else if (action === 'retry') latest.current.submit(turn.question)
+    else latest.current.ask(turn.question, true)
+  }, [])
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
@@ -229,9 +245,7 @@ export default function AssistantApp() {
                 </section>
               )}
               {turns.map((t, i) => (
-                <TurnView key={t.id} turn={t} live={a.busy && i === turns.length - 1}
-                  onEvidence={() => { setEvidenceId(t.id); setDrawerOpen(true) }}
-                  onRetry={() => submit(t.question)} onCouncil={() => a.ask(t.question, true)} />
+                <TurnView key={t.id} turn={t} live={a.busy && i === turns.length - 1} onAction={onTurnAction} />
               ))}
             </div>
           </div>

@@ -94,8 +94,8 @@ def _clients(request: Request) -> tuple[WorkspaceClient, AuthContext, str | None
     if ask_settings.use_user_token:
         if not token:
             raise HTTPException(401, "User authorization is required but no user token was forwarded.")
-        return WorkspaceClient(host=WorkspaceClient().config.host, token=token, auth_type="pat"), AuthContext(mode="user"), token
-    return WorkspaceClient(), AuthContext(mode="service_principal", disclosure=SP_DISCLOSURE), None
+        return WorkspaceClient(host=_app_client().config.host, token=token, auth_type="pat"), AuthContext(mode="user"), token
+    return _app_client(), AuthContext(mode="service_principal", disclosure=SP_DISCLOSURE), None
 
 
 async def _watch_disconnect(request: Request, cancelled: threading.Event, done: asyncio.Event) -> None:
