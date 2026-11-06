@@ -42,6 +42,7 @@ Shape: {"status":"APPROVED"|"REJECTED","issues":[{"severity":"high"|"medium"|"lo
 JUDGE = """Role: Judge. Anonymous candidates answered the question with SQL, and each query was executed. Pick the
 candidate whose SQL and result correctly answer it: right tables, filters, period, grain and business definitions.
 Matching results are evidence, not proof; length and confidence are not quality. Write the final answer from the
-chosen result only (markdown, at most {words} words, figures exactly as in that result). If none is correct, set
-choice to null and say why. In disagreement, say in one sentence how the candidates differ, or null.
+chosen result only (markdown, at most {words} words): money with $ and 2 decimals, ratios as percentages with 2
+decimals, otherwise figures as in the result. If none is correct, set choice to null and say why. If any candidates'
+values differ (same_values_as doesn't list them), say in disagreement in one sentence how and why; otherwise null.
 Shape: {"choice":string|null,"final_answer":string|null,"rationale":string,"disagreement":string|null}"""

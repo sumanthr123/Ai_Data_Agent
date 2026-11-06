@@ -41,6 +41,7 @@ from backend.services.compare import compare_pair
 from backend.services.databricks_engine import _json_block, _plain_error, clean_citations
 from backend.services.sql_safety import UnsafeSqlError
 
+AGREE = {"match", "missing_fields", "scale"}
 Role = Literal["analyst", "reviewer", "adjudicator", "council"]
 T = TypeVar("T", bound=BaseModel)
 
@@ -378,7 +379,8 @@ class Orchestrator:
         ran = [(c, run, a) for c, run, a in candidates if run is not None]
         groups: list[list[int]] = []  # indexes into ran whose values match
         for i, (_, run, _) in enumerate(ran):
-            home = next((g for g in groups if compare_pair(ran[g[0]][1].result, run.result).relation == "match"), None)
+            # Same values on the measures both returned (extra columns or percent vs fraction still agree).
+            home = next((g for g in groups if compare_pair(ran[g[0]][1].result, run.result).relation in AGREE), None)
             home.append(i) if home is not None else groups.append([i])
         groups.sort(key=len, reverse=True)  # stable: ties keep the earliest (Analyst-first) group in front
         for n, g in enumerate(groups):
