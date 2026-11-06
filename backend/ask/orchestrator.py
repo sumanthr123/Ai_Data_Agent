@@ -216,8 +216,8 @@ class Orchestrator:
         self.verification.analyst = "OK"
         if plan.status == "CLARIFY" and _asks_only_for_comparison(question, plan.clarifying_question):
             # Prompt wording didn't stop GPT-OSS asking this; default to the previous period and say so.
-            context = {**context, "comparison": "the previous period of the same length (the user named none)"}
-            plan = await self._call("analyst", "plan", prompts.ANALYST_PLAN, self._user(context, question), AnalystPlan, cfg.analyst_max_out)
+            plan = await self._call("analyst", "plan", prompts.ANALYST_PLAN + prompts.PREVIOUS_PERIOD, self._user(context, question),
+                                    AnalystPlan, cfg.analyst_max_out)
             if plan.status == "READY":
                 plan.assumptions = [*plan.assumptions, "Compared with the previous period, since no comparison was named."]
         if plan.status == "CLARIFY" and plan.clarifying_question:

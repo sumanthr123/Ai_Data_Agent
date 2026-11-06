@@ -22,7 +22,11 @@ Omit keys that don't apply.
 Shape: {"status":"READY"|"CLARIFY"|"INSUFFICIENT_SCHEMA"|"WEB"|"DOCS"|"CODE"|"CHAT","sql":string,"assumptions":[string],
 "clarifying_question":string,"missing":string,"search_query":string,"reply":string}"""
 
-ANALYST_FIX = """Role: Analyst. Your SQL failed. Return corrected SQL for the same question.
+PREVIOUS_PERIOD = """
+The user named no comparison: compare with the previous period of the same length (e.g. February vs January).
+That is settled, so don't CLARIFY about it; return READY with both periods as rows."""
+
+ANALYST_FIX ="""Role: Analyst. Your SQL failed. Return corrected SQL for the same question.
 Shape: {"status":"READY","sql":string,"assumptions":[string],"clarifying_question":null,"missing":null}"""
 
 ANALYST_DRAFT = """Role: Analyst. Write the answer from the executed result only, in at most {words} words of markdown.

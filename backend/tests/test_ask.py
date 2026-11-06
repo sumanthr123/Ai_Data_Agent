@@ -277,7 +277,7 @@ class OrchestratorTests(unittest.TestCase):
         r, models, _ = run({CFG.analyst: [ask, PLAN, GOOD], CFG.reviewer: [APPROVED]}, question="Why did sales drop in February 2017?")
         self.assertEqual(r.status, "ANSWERED")
         self.assertIn("Compared with the previous period, since no comparison was named.", r.assumptions)
-        self.assertIn('"comparison"', models.seen[1][1])
+        self.assertEqual([e for e, _ in models.seen[:2]], [CFG.analyst, CFG.analyst])  # one re-plan, then the draft
 
     def test_metric_ambiguity_still_clarifies(self):
         ask = {"status": "CLARIFY", "clarifying_question": "Which metric, and compared with which period?"}
