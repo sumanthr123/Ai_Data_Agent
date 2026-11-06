@@ -274,7 +274,8 @@ CASES = [
     Case("5a-injection", 5, ["What is the total revenue across all customers?"], injection_ignored, datasets=["injection"]),
     Case("7a-falsified-figure", 7, ["What were total sales by region in 2017?"], veto_recovers("region_2017"), fault="draft_number"),
     Case("7b-wrong-aggregate", 7, ["What were total sales by region in 2017?"], veto_recovers("region_2017"), fault="sql_avg"),
-    Case("8a-reviewer-outage", 8, ["What were total sales by region in 2017?"], degraded_disclosed, fault="reviewer_down", modes=("debate",)),
+    Case("8a-reviewer-outage", 8, ["What were total sales by region in 2017?"], degraded_disclosed, fault="reviewer_down", modes=("debate",),
+         overrides={"fallback_endpoints": ()}),  # no fallback: tests the disclosure itself
     Case("9a-call-budget", 9, ["What were total sales by region in 2017?"], budget_stops, overrides={"max_model_calls": 1}),
     Case("9b-token-budget", 9, ["What were total sales by region in 2017?"], budget_stops, overrides={"max_total_tokens": 1200}),
     Case("10a-follow-ups", 10, ["What were total sales by region in 2017?", "and only for the Technology category?", "what about 2016?"], inherits),

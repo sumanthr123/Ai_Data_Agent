@@ -22,7 +22,7 @@ from backend.services.sql_safety import UnsafeSqlError
 
 TABLE = "ai_data_agent.orders.superstore"
 CFG = AskSettings(warehouse_id="wh", default_dataset=TABLE, analyst="gemini-3-5-flash", reviewer="databricks-gpt-oss-120b",
-                  adjudicator="claude-sonnet-5-5/claude-sonnet-5-5", prices={}, mlflow_experiment="")
+                  adjudicator="claude-sonnet-5-5/claude-sonnet-5-5", prices={}, mlflow_experiment="", fallback_endpoints=())
 SQL = f"SELECT region, ROUND(SUM(sales), 2) AS total_sales FROM {TABLE} WHERE order_date >= DATE '2017-01-01' GROUP BY region"
 FIX = f"SELECT region, ROUND(SUM(sales), 2) AS total_sales FROM {TABLE} GROUP BY region"
 ROWS = {SQL: [{"region": "West", "total_sales": 250128.35}, {"region": "East", "total_sales": 213082.93}],
@@ -166,6 +166,52 @@ class RouteTests(unittest.TestCase):
         fixed = {"answer": "Reads the table.", "language": "python", "code": "df = spark.table('t')\n"}
         r, _, _ = run({CFG.analyst: [{"status": "CODE"}, broken, fixed]}, question="Read a table in PySpark")
         self.assertEqual((r.code.validation, r.verification.correction_cycles), ("syntax_ok", 1))
+
+
+class CoverageTests(unittest.TestCase):
+    def test_empty_result_states_the_data_range(self):
+        empty = f"SELECT customer_name FROM {TABLE} WHERE order_date = DATE '2026-11-05'"
+        ROWS[empty] = []
+        try:
+            plan = {**PLAN, "sql": empty}
+            draft = {"draft_answer": "No customers ordered yesterday.", "cited_metrics": [], "hypotheses": []}
+            r, _, _ = run({CFG.analyst: [plan, draft], CFG.reviewer: [APPROVED]}, question="Who bought yesterday?")
+        finally:
+            del ROWS[empty]
+        self.assertIn("covers 2014-01-03 to 2017-12-30", r.answer)
+
+
+class FallbackTests(unittest.TestCase):
+    FB = dataclasses.replace(CFG, fallback_endpoints=("databricks-gpt-oss-20b", "databricks-qwen35-122b-a10b"))
+
+    def test_analyst_outage_falls_back_to_a_family_other_than_the_reviewer(self):
+        r, models, _ = run({CFG.analyst: [RuntimeError("402 prepayment credits are depleted")], "databricks-qwen35-122b-a10b": [PLAN, GOOD],
+                            CFG.reviewer: [APPROVED]}, cfg=self.FB)
+        self.assertEqual((r.status, r.verification.reviewed), ("ANSWERED", True))
+        self.assertNotIn("databricks-gpt-oss-20b", [e for e, _ in models.seen])  # same family as the Reviewer: skipped
+        self.assertIn("databricks-qwen35-122b-a10b failed", "".join(r.verification.degraded_reasons).replace("answered instead", "failed"))
+        self.assertEqual([c.endpoint for c in r.verification.calls if c.status == "ok"][:2], ["databricks-qwen35-122b-a10b"] * 2)  # kept for the question
+
+    def test_reviewer_outage_falls_back(self):
+        r, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [RuntimeError("503 overloaded")], "databricks-gpt-oss-20b": [APPROVED]},
+                      cfg=dataclasses.replace(CFG, analyst="gemini-3-5-flash", fallback_endpoints=("databricks-gpt-oss-20b",)))
+        self.assertEqual((r.verification.reviewer, r.verification.reviewed), ("APPROVED", True))
+        self.assertTrue(r.verification.degraded_reasons)
+
+
+class WarehouseTests(unittest.TestCase):
+    def test_pending_statement_is_reported_once_and_gets_start_grace(self):
+        from types import SimpleNamespace as NS
+        from databricks.sdk.service.sql import StatementState as St
+        from backend.ask import warehouse
+        states = iter([St.PENDING, St.PENDING, St.RUNNING, St.SUCCEEDED])
+        reply = lambda *a, **k: NS(statement_id="s", status=NS(state=next(states), error=None), manifest=None, result=None)  # noqa: E731
+        w = NS(statement_execution=NS(execute_statement=reply, get_statement=reply, cancel_execution=lambda s: None))
+        seen = []
+        with unittest.mock.patch.object(warehouse.time, "sleep"):
+            run = warehouse.execute(w, "SELECT 1", warehouse_id="wh", timeout_s=0, row_limit=10, byte_limit=100,
+                                    on_pending=lambda: seen.append(1), start_grace_s=60)
+        self.assertEqual((seen, run.result.row_count), ([1], 0))  # without the grace, timeout_s=0 would have cancelled it
 
 
 class ResilienceTests(unittest.TestCase):

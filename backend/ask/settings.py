@@ -56,6 +56,8 @@ class AskSettings:
     adjudicator: str = os.getenv("ADJUDICATOR_MODEL_ENDPOINT", "databricks-qwen35-122b-a10b")
     # Tier 2 council: members draft SQL independently; the judge rotates to a family that didn't author the leading result.
     council_endpoints: tuple[str, ...] = tuple(e.strip() for e in os.getenv("COUNCIL_ENDPOINTS", "databricks-gpt-oss-120b,databricks-llama-4-maverick").split(",") if e.strip())
+    # Tried once when the Analyst or Reviewer endpoint fails; never the same family as the other role.
+    fallback_endpoints: tuple[str, ...] = tuple(e.strip() for e in os.getenv("FALLBACK_ENDPOINTS", "databricks-qwen35-122b-a10b").split(",") if e.strip())
     council_extra_tokens: int = _int("COUNCIL_EXTRA_TOKENS", 10000)
     council_extra_calls: int = _int("COUNCIL_EXTRA_CALLS", 4)
     use_user_token: bool = os.getenv("USE_USER_TOKEN", "false").lower() in ("1", "true", "yes")
@@ -70,6 +72,7 @@ class AskSettings:
     max_rows_to_ui: int = _int("MAX_RESULT_ROWS_TO_UI", 500)
     export_max_rows: int = _int("EXPORT_MAX_ROWS", 100_000)
     statement_timeout_s: int = _int("STATEMENT_TIMEOUT_S", 45)
+    warehouse_start_grace_s: int = _int("WAREHOUSE_START_GRACE_S", 90)  # extra time while the warehouse starts or queues
     statement_byte_limit: int = _int("STATEMENT_BYTE_LIMIT", 16 * 1024 * 1024)
     model_timeout_s: int = _int("ASK_MODEL_TIMEOUT_S", 60)
     cache_ttl_s: int = _int("RESULT_CACHE_TTL_S", 300)

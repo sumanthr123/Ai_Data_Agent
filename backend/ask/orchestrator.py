@@ -70,6 +70,7 @@ class DatabricksData:
 
     def __init__(self, w: WorkspaceClient, cfg: AskSettings, cancelled: threading.Event) -> None:
         self.w, self.cfg, self.cancelled = w, cfg, cancelled
+        self.on_pending: Callable[[], None] | None = None
 
     def describe(self, names: list[str]) -> list[TableInfo]:
         out = []
@@ -82,7 +83,8 @@ class DatabricksData:
 
     def execute(self, sql: str) -> Execution:
         return execute(self.w, sql, warehouse_id=self.cfg.warehouse_id, timeout_s=self.cfg.statement_timeout_s,
-                       row_limit=self.cfg.max_rows_to_ui, byte_limit=self.cfg.statement_byte_limit, cancelled=self.cancelled.is_set)
+                       row_limit=self.cfg.max_rows_to_ui, byte_limit=self.cfg.statement_byte_limit, cancelled=self.cancelled.is_set,
+                       on_pending=self.on_pending, start_grace_s=self.cfg.warehouse_start_grace_s)
 
 
 def _data(kind: str, text: str) -> str:
@@ -108,6 +110,7 @@ class Orchestrator:
         self.sources: list[SourceInfo] = []
         self.council: CouncilInfo | None = None
         self.answer_key: tuple | None = None
+        self.overrides: dict[str, str] = {}  # role -> fallback endpoint after an outage, for the rest of this question
         self.versions: dict[str, str] = {}
         self.reviewer_down = False
         self.execution: Execution | None = None
@@ -120,6 +123,9 @@ class Orchestrator:
         started = time.monotonic()
         rid = uuid.uuid4().hex[:12]
         token = logs.REQUEST_ID.set(rid)
+        loop = asyncio.get_running_loop()
+        if hasattr(self.data, "on_pending"):  # called from the warehouse thread; hop back to the event loop
+            self.data.on_pending = lambda: loop.call_soon_threadsafe(self._running, "execute", "Warehouse starting or queued…")
         try:
             response = await self._traced(req, started)
             if self.answer_key and not response.from_cache and response.status == "ANSWERED" and response.kind in CACHEABLE:
@@ -481,9 +487,30 @@ class Orchestrator:
 
     # ---- model calls -------------------------------------------------------------------------------------------
 
+    def _endpoint(self, role: str) -> str:
+        return self.overrides.get(role) or {"analyst": self.cfg.analyst, "reviewer": self.cfg.reviewer, "adjudicator": self.cfg.adjudicator}[role]
+
     async def _call(self, role: Role, purpose: str, role_prompt: str, user: str, contract: type[T], want_output: int, retry: bool = True,
                     endpoint: str | None = None) -> T:
-        endpoint = endpoint or {"analyst": self.cfg.analyst, "reviewer": self.cfg.reviewer, "adjudicator": self.cfg.adjudicator}[role]
+        """One role call. If the Analyst's or Reviewer's endpoint fails, retry once on a fallback from another family than
+        the other role, so the review stays independent; the switch is disclosed."""
+        try:
+            return await self._call_once(role, purpose, role_prompt, user, contract, want_output, retry, endpoint)
+        except ModelUnavailable as exc:
+            if endpoint or role not in ("analyst", "reviewer"):
+                raise
+            other = self._endpoint("reviewer" if role == "analyst" else "analyst")
+            failed = self._endpoint(role)
+            fallback = next((e for e in self.cfg.fallback_endpoints if e != failed and model_family(e) != model_family(other)), None)
+            if not fallback:
+                raise
+            self.overrides[role] = fallback
+            self.verification.degraded_reasons.append(f"{role.title()} {failed} failed ({exc}); {fallback} answered instead.")
+            return await self._call_once(role, f"{purpose}_fallback", role_prompt, user, contract, want_output, retry, fallback)
+
+    async def _call_once(self, role: Role, purpose: str, role_prompt: str, user: str, contract: type[T], want_output: int, retry: bool,
+                         endpoint: str | None) -> T:
+        endpoint = endpoint or self._endpoint(role)
         system = f"{prompts.POLICY}\n\n{role_prompt}"
         try:
             max_out = self.budget.reserve_call(len(system) + len(user), want_output)
@@ -519,8 +546,8 @@ class Orchestrator:
                 self._record(call)
                 span.set_outputs(parsed.model_dump())
         if parsed is None:  # one more try, within the same budgets, before giving up
-            return await self._call(role, f"{purpose}_retry", role_prompt, user + "\n\nYour last reply wasn't the requested JSON. "
-                                    "Reply with ONLY that JSON object.", contract, want_output, retry=False, endpoint=endpoint)
+            return await self._call_once(role, f"{purpose}_retry", role_prompt, user + "\n\nYour last reply wasn't the requested JSON. "
+                                    "Reply with ONLY that JSON object.", contract, want_output, False, endpoint)
         return parsed
 
     def _user(self, context: dict[str, Any], question: str) -> str:
@@ -535,6 +562,9 @@ class Orchestrator:
 
     def _answer(self, state: ConversationState, question: str, text: str) -> AskResponse:
         answer, truncated = grounding.cap_words(text, self.cfg.max_answer_words)
+        coverage = [f"{s.table.rsplit('.', 1)[-1]} covers {s.date_range[0]} to {s.date_range[1]}" for s in self.sources if s.date_range]
+        if self.execution and self.execution.result.row_count == 0 and coverage:  # "no rows" vs "period not in the data"
+            answer += f"\n\nNote: {'; '.join(coverage)}, so an empty result can mean the period asked about isn't in the data."
         return self._finish("ANSWERED", state, question=question, answer=answer, answer_truncated=truncated,
                             hypotheses=self.proposal.hypotheses if self.proposal else [])
 
@@ -655,10 +685,10 @@ class Orchestrator:
         if self.on_event:
             self.on_event(event)
 
-    def _running(self, stage: str) -> None:
+    def _running(self, stage: str, detail: str = "") -> None:
         """Streamed only, so the UI can show which step is in progress; not kept in the response."""
         if self.on_event:
-            self.on_event(StageEvent(stage=stage, status="running"))
+            self.on_event(StageEvent(stage=stage, status="running", detail=detail))
 
     def _check_cancelled(self) -> None:
         if self.cancelled.is_set():

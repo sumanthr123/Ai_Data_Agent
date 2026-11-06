@@ -36,6 +36,7 @@ export function StatusSteps({ stages, live }: { stages: StageEvent[]; live: bool
           title={s.detail || undefined}>
           <StatusIcon status={s.status} />
           <span>{LABELS[s.stage]}</span>
+          {s.status === 'running' && s.detail && <span className="text-zinc-400">{s.detail}</span>}
           {s.ms > 0 && s.status !== 'running' && <span className="font-mono text-[11px] text-zinc-400">{(s.ms / 1000).toFixed(1)}s</span>}
           <span className="sr-only">{s.status}</span>
         </li>

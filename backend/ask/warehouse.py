@@ -30,7 +30,10 @@ class Execution:
 
 
 def execute(w: WorkspaceClient, sql: str, *, warehouse_id: str, timeout_s: int, row_limit: int, byte_limit: int,
-            cancelled: Callable[[], bool] = lambda: False, parameters: dict[str, str] | None = None) -> Execution:
+            cancelled: Callable[[], bool] = lambda: False, parameters: dict[str, str] | None = None,
+            on_pending: Callable[[], None] | None = None, start_grace_s: int = 0) -> Execution:
+    """Runs one statement, polling until done. While it's PENDING (warehouse starting or queued) `on_pending` is called
+    once and the deadline is extended by `start_grace_s`, so a cold start isn't reported as a slow query."""
     started = time.monotonic()
     deadline = started + timeout_s
     response = w.statement_execution.execute_statement(
@@ -39,7 +42,12 @@ def execute(w: WorkspaceClient, sql: str, *, warehouse_id: str, timeout_s: int, 
         disposition=Disposition.INLINE, format=Format.JSON_ARRAY,
         parameters=[StatementParameterListItem(name=k, value=v) for k, v in (parameters or {}).items()] or None,
     )
+    waited = False
     while response.status and response.status.state in _RUNNING:
+        if response.status.state == StatementState.PENDING and not waited:
+            waited, deadline = True, deadline + start_grace_s
+            if on_pending:
+                on_pending()
         if cancelled() or time.monotonic() > deadline:
             w.statement_execution.cancel_execution(response.statement_id)
             raise QueryError("Query cancelled." if cancelled() else f"Query exceeded the {timeout_s}s timeout and was cancelled.")
