@@ -1,7 +1,7 @@
 """Checks that run in Databricks (serverless job `ai-data-agent-checks`) against the source in the workspace: backend
 unit tests, then the live evaluation. Runs in-process so the job's own Databricks credentials are used.
 
-Job parameters: --warehouse-id <id> [--evals all|none|1,2,3]
+Job parameters: --root <workspace source folder> --warehouse-id <id> [--evals all|none|1,2,3]
 """
 
 from __future__ import annotations
@@ -13,16 +13,16 @@ import sys
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--root", default=str(Path(globals().get("__file__", "scripts/x")).resolve().parents[1]))  # jobs run without __file__
     parser.add_argument("--warehouse-id", required=True)
     parser.add_argument("--evals", default="all", help="all, none, or comma-separated category numbers")
     args = parser.parse_args()
-    os.chdir(ROOT)
-    sys.path.insert(0, str(ROOT))
+    root = Path(args.root)
+    os.chdir(root)
+    sys.path.insert(0, str(root))
     os.environ["DATABRICKS_WAREHOUSE_ID"] = args.warehouse_id
 
     print("== backend unit tests", flush=True)
@@ -37,7 +37,7 @@ def main() -> int:
 
         only = None if args.evals == "all" else {int(x) for x in args.evals.split(",")}
         asyncio.run(run_evals.main(only))
-        print(f"\nReport written to {ROOT / 'evals' / 'REPORT.md'}")
+        print(f"\nReport written to {root / 'evals' / 'REPORT.md'}")
     return 0
 
 
