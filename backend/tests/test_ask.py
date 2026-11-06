@@ -12,7 +12,7 @@ from backend.ask import grounding, knowledge, sql_guard
 from backend.ask.cache import ResultCache
 from backend.ask.contracts import AskRequest, AuthContext, ConversationState
 from backend.ask.models import ChatResult, _usage
-from backend.ask.orchestrator import Orchestrator, TableInfo, _data
+from backend.ask.orchestrator import WEB_OFF, Orchestrator, TableInfo, _data
 from backend.ask.settings import AskSettings, ConfigError
 from backend.ask.tracing import Tracer, redact
 from backend.ask.warehouse import Execution, QueryError
@@ -103,6 +103,13 @@ class LiveQuestionTests(unittest.TestCase):
         self.assertFalse(r.verification.reviewed)
         self.assertIn("live web search", r.verification.degraded_reasons[0])
         self.assertEqual(r.verification.checks[0].status, "warning")  # "Winds reach 20 km/h along the coast this afternoon." cites nothing
+
+    def test_web_search_off_says_so_without_searching(self):
+        with unittest.mock.patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
+            r, models, data = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?")
+        self.assertEqual((r.status, r.kind, r.answer), ("ANSWERED", "chat", WEB_OFF))
+        self.assertEqual((len(models.seen), data.executed), (1, []))
+        self.assertNotIn("web_search", [e.stage for e in r.events])
 
     def test_failed_search_never_guesses(self):
         def down(_: str) -> dict:

@@ -8,7 +8,7 @@ assistant. Design and measurements: ARCHITECTURE.md.
 1. Context: access check (`registry.py`), table describe and profile (`profiling.py`).
 2. The Analyst's plan call also routes: `CHAT`, `DOCS` (`knowledge.py`, BM25 over the repo docs), `CODE`
    (`code_check.py`: SQL planned with `EXPLAIN`, Python parsed, never executed), `WEB` (`backend/services/web_search.py`,
-   one grounded Google Search), `CLARIFY`, `INSUFFICIENT_SCHEMA`, or `READY` with SQL.
+   one grounded Google Search; off while `GEMINI_API_KEY` is unset, as now), `CLARIFY`, `INSUFFICIENT_SCHEMA`, or `READY` with SQL.
 3. Data: `sql_guard.py` (read-only, approved tables) and `joins.py` (fan-out) before `warehouse.py` runs it; the
    Analyst drafts; `grounding.py` checks figures, causes and completeness; the Reviewer (a different model family)
    can veto; at most one correction.

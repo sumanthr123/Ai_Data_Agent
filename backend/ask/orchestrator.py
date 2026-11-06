@@ -88,6 +88,8 @@ class DatabricksData:
                        on_pending=self.on_pending, start_grace_s=self.cfg.warehouse_start_grace_s)
 
 
+WEB_OFF = ("Live web search is turned off, so I can't answer questions about current events or anything outside your "
+           "data. Ask about your datasets, this app, or code.")
 _CHANGE = re.compile(r"\b(drop|dropped|fall|fell|decline|declined|decrease|decreased|dip|dipped|rise|rose|increase|increased|grow|grew|growth|jump|jumped|spike|spiked)\b", re.I)
 _COMPARISON = re.compile(r"\b(previous|prior|same month|last year|preceding|compar\w*|reference period|baseline)\b", re.I)
 _METRIC = re.compile(r"\b(metric|measure)s?\b", re.I)
@@ -640,6 +642,8 @@ class Orchestrator:
 
     async def _web(self, state: ConversationState, question: str, query: str) -> AskResponse:
         """Live question: one grounded Google Search; the answer cites the pages it came from and is labelled as such."""
+        if self.search is web_search.search and not web_search.available():
+            return self._finish("ANSWERED", state, kind="chat", answer=WEB_OFF)
         self._running("web_search")
         mark = time.monotonic()
         self.sources = []
