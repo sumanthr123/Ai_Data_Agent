@@ -6,9 +6,9 @@ env:
     valueFrom: sql-warehouse
   - name: UC_CATALOG
     value: "ai_data_agent"
-  # Live web search is off (Gemini account has no credits). To turn it back on, add:
-  #   - name: GEMINI_API_KEY
-  #     valueFrom: gemini-api-key
+  # Live web search (Gemini Google Search over HTTPS). Without this key, live questions get a "web search is off" reply.
+  - name: GEMINI_API_KEY
+    valueFrom: gemini-api-key
   # Query as the signed-in user when the app has user authorization enabled.
   - name: USE_USER_TOKEN
     value: "false"
