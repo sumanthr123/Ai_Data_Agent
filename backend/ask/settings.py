@@ -57,7 +57,10 @@ class AskSettings:
     # Tier 2 council: members draft SQL independently; the judge rotates to a family that didn't author the leading result.
     council_endpoints: tuple[str, ...] = tuple(e.strip() for e in os.getenv("COUNCIL_ENDPOINTS", "databricks-gpt-oss-120b,databricks-llama-4-maverick").split(",") if e.strip())
     # Tried once when the Analyst or Reviewer endpoint fails; never the same family as the other role.
-    fallback_endpoints: tuple[str, ...] = tuple(e.strip() for e in os.getenv("FALLBACK_ENDPOINTS", "databricks-qwen35-122b-a10b").split(",") if e.strip())
+    # Models the user may pick to answer (the Analyst); "Auto" uses ANALYST_MODEL_ENDPOINT.
+    model_choices: tuple[str, ...] = tuple(e.strip() for e in os.getenv("MODEL_CHOICES", "databricks-gpt-oss-120b,databricks-llama-4-maverick,"
+        "databricks-qwen35-122b-a10b,gemini-3-5-flash/gemini-3-5-flash,claude-sonnet-5-5/claude-sonnet-5-5").split(",") if e.strip())
+    fallback_endpoints: tuple[str, ...] =tuple(e.strip() for e in os.getenv("FALLBACK_ENDPOINTS", "databricks-qwen35-122b-a10b").split(",") if e.strip())
     council_extra_tokens: int = _int("COUNCIL_EXTRA_TOKENS", 10000)
     council_extra_calls: int = _int("COUNCIL_EXTRA_CALLS", 4)
     use_user_token: bool = os.getenv("USE_USER_TOKEN", "false").lower() in ("1", "true", "yes")

@@ -22,7 +22,7 @@ each call. What the UI shows must stay truthful: stages are emitted only when th
 correctness; there's no confidence %.
 
 ## Rules
-- Models are Model Serving endpoints only (`models.py`: one retry on transient errors, a per-endpoint breaker).
+- Models are Model Serving endpoints only (`models.py`: one retry on transient errors, a per-endpoint breaker). Users may pick the Analyst from `MODEL_CHOICES` (`/api/ask/models`); the Reviewer then moves to another family if needed.
 - SQL is read-only: keep `sql_guard.guard` in front of every execution, including `EXPLAIN`.
 - Keep runtime prompts in `prompts.py` short; never paste build specs into them.
 - API shapes live in `backend/ask/contracts.py`, mirrored in `frontend/src/assistant/types.ts`.

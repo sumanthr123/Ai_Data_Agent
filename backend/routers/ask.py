@@ -19,12 +19,12 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.ask.cache import ResultCache, auth_key
 from backend.ask import profiling, sql_guard
-from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, ExportRequest, UploadResult
+from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, ExportRequest, ModelOption, UploadResult
 from backend.ask.ingest import IngestionService, UploadRejected, user_key
 from backend.ask.models import ServingClient
 from backend.ask.orchestrator import DatabricksData, Orchestrator
 from backend.ask.registry import Registry
-from backend.ask.settings import ConfigError, ask_settings
+from backend.ask.settings import ConfigError, ask_settings, model_family
 from backend.ask.tracing import Tracer
 from backend.ask.warehouse import Execution, QueryError, execute
 from backend.schemas import ColumnNode
@@ -118,8 +118,37 @@ def _orchestrator(request: Request, cancelled: threading.Event, on_event=None) -
                         on_event=on_event)
 
 
+def _check_model(body: AskRequest) -> None:
+    if body.model and body.model not in ask_settings.model_choices:
+        raise HTTPException(422, f"Model {body.model} isn't one of the models you can choose.")
+
+
+_probes: dict[str, tuple[float, ModelOption]] = {}
+
+
+def _probe(endpoint: str) -> ModelOption:
+    """A tiny call, cached 15 minutes, so the picker can grey out models that can't answer (e.g. a provider out of credits)."""
+    cached = _probes.get(endpoint)
+    if cached and time.monotonic() - cached[0] < 900:
+        return cached[1]
+    try:
+        ServingClient(_app_client(), retries=0).chat(endpoint, "Reply OK.", "OK", 16)
+        option = ModelOption(id=endpoint, family=model_family(endpoint), available=True)
+    except Exception as exc:
+        option = ModelOption(id=endpoint, family=model_family(endpoint), available=False, note=plain_error(exc))
+    _probes[endpoint] = (time.monotonic(), option)
+    return option
+
+
+@router.get("/ask/models", response_model=list[ModelOption])
+async def models() -> list[ModelOption]:
+    """Models the user can pick to answer; "Auto" (no pick) uses the configured Analyst."""
+    return list(await asyncio.gather(*(asyncio.to_thread(_probe, e) for e in ask_settings.model_choices)))
+
+
 @router.post("/ask", response_model=AskResponse)
 async def ask(body: AskRequest, request: Request) -> AskResponse:
+    _check_model(body)
     cancelled, done = threading.Event(), asyncio.Event()
     orchestrator = _orchestrator(request, cancelled)
     watcher = asyncio.create_task(_watch_disconnect(request, cancelled, done))
@@ -140,6 +169,7 @@ async def ask(body: AskRequest, request: Request) -> AskResponse:
 async def ask_stream(body: AskRequest, request: Request) -> EventSourceResponse:
     """Server-sent events: `stage` (running/succeeded/failed per step) as they happen, then one `result` or `error`.
     Closing the connection cancels the run, including the warehouse statement."""
+    _check_model(body)
     cancelled, queue = threading.Event(), asyncio.Queue()
     orchestrator = _orchestrator(request, cancelled, on_event=queue.put_nowait)
 

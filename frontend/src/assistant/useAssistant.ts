@@ -67,7 +67,7 @@ export function useAssistant(defaultDatasets: string[]) {
   }, [activeId, start, update])
 
   /** `datasets`: what's selected and still available; an expired upload in the saved list would fail the question. */
-  const ask = useCallback(async (question: string, council = false, datasets?: string[]) => {
+  const ask = useCallback(async (question: string, council = false, datasets?: string[], model: string | null = null) => {
     if (busy || !question.trim()) return
     const conversation = active ?? start(datasets)
     const use = datasets ?? conversation.datasets
@@ -83,7 +83,7 @@ export function useAssistant(defaultDatasets: string[]) {
     setBusy(true)
     try {
       const response = await streamAsk(turn.question, use, state,
-        (event) => updateTurn(conversation.id, turn.id, (t) => ({ ...t, stages: mergeStage(t.stages, event) })), abort.signal, council)
+        (event) => updateTurn(conversation.id, turn.id, (t) => ({ ...t, stages: mergeStage(t.stages, event) })), abort.signal, council, model)
       updateTurn(conversation.id, turn.id, (t) => ({ ...t, response }))
       update(conversation.id, (c) => ({ ...c, state: response.state }))
     } catch (err) {

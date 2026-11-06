@@ -1,6 +1,7 @@
 import { AlertTriangle, BookOpen, Code2, Database, Globe, MessageCircle, Scale } from 'lucide-react'
 import { CodeBlock } from '../components/CodeBlock'
 import { cn } from '../lib/cn'
+import { modelLabel } from './format'
 import type { AskResponse, CodeInfo, CouncilInfo, DocSource } from './types'
 
 const KINDS = {
@@ -40,7 +41,7 @@ export function CouncilView({ council }: { council: CouncilInfo }) {
         {council.candidates.map((c, i) => (
           <li key={i} className={cn('rounded-md border p-2', c.label && c.label === council.chosen ? 'border-emerald-400/40' : 'border-zinc-800')}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-zinc-300">
-              <span className="font-medium text-zinc-100">{c.label || '–'} · {c.endpoint.split('/').pop()}</span>
+              <span className="font-medium text-zinc-100">{c.label || '–'} · {modelLabel(c.endpoint)}</span>
               <span>{c.status === 'executed' ? `${c.row_count ?? 0} row(s), result group ${(c.group ?? 0) + 1}` : c.status}</span>
               {c.note && <span className="text-zinc-400">{c.note}</span>}
             </div>
@@ -86,4 +87,18 @@ export function CodeAnswer({ code }: { code: CodeInfo }) {
       <p className="text-[12px]"><span className={cn('font-medium', color)}>{label}</span> <span className="text-zinc-400">{code.detail}</span></p>
     </div>
   )
+}
+
+const ROLES = [['analyst', 'Answered by'], ['reviewer', 'Reviewed by'], ['council', 'Council'], ['adjudicator', 'Judged by']] as const
+
+/** Which models actually produced this answer (from the call log, so fallbacks and the user's pick show as they ran). */
+export function ModelsUsed({ r }: { r: AskResponse }) {
+  const ok = r.verification.calls.filter((c) => c.status === 'ok')
+  const parts = ROLES.flatMap(([role, label]) => {
+    const names = [...new Set(ok.filter((c) => c.role === role).map((c) => modelLabel(c.endpoint)))]
+    return names.length ? [`${label} ${names.join(', ')}`] : []
+  })
+  if (r.kind === 'web') parts.push('Web search by Gemini (Google Search)')
+  if (!parts.length) return null
+  return <p className="text-[11.5px] text-zinc-400">Models: {parts.join(' · ')}</p>
 }

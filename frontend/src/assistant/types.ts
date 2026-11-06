@@ -17,6 +17,7 @@ export interface ConversationState {
 
 export interface Issue { severity: 'high' | 'medium' | 'low'; category: string; description: string }
 export interface Check { name: string; status: 'passed' | 'failed' | 'warning' | 'skipped'; detail: string }
+export interface ModelOption { id: string; family: string; available: boolean; note: string }
 export interface ModelCall {
   role: 'analyst' | 'reviewer' | 'adjudicator' | 'council'; purpose: string; endpoint: string
   status: 'ok' | 'failed' | 'timed_out' | 'skipped_budget'; latency_ms: number

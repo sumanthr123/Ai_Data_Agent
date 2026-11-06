@@ -137,6 +137,8 @@ class Orchestrator:
         started = time.monotonic()
         rid = uuid.uuid4().hex[:12]
         token = logs.REQUEST_ID.set(rid)
+        if req.model:
+            self.choose_analyst(req.model)
         loop = asyncio.get_running_loop()
         if hasattr(self.data, "on_pending"):  # called from the warehouse thread; hop back to the event loop
             self.data.on_pending = lambda: loop.call_soon_threadsafe(self._running, "execute", "Warehouse starting or queued…")
@@ -206,7 +208,7 @@ class Orchestrator:
 
         # Access and table versions were just re-checked, so a cached answer here is current and allowed.
         self.answer_key = ("answer", self.auth_key, self.user_key, json.dumps(sorted(self.versions.items())), " ".join(question.lower().split()),
-                           json.dumps([state.last_sql, state.applied_filters, state.resolved_definitions], default=str), req.council)
+                           json.dumps([state.last_sql, state.applied_filters, state.resolved_definitions], default=str), req.council, req.model)
         hit = self.cache.get(self.answer_key)
         if hit is not None:
             self._event("complete", "succeeded", time.monotonic(), "cached answer")
@@ -259,14 +261,14 @@ class Orchestrator:
                 sql, assumptions = fix.sql, fix.assumptions or assumptions
 
         if req.council:
-            return await self._council(context, question, state, set(datasets), [(cfg.analyst, guarded.sql, self.execution, assumptions)], "requested")
+            return await self._council(context, question, state, set(datasets), [(self._endpoint("analyst"), guarded.sql, self.execution, assumptions)], "requested")
         self.proposal = await self._draft(context, question, guarded.sql, assumptions, [])
         checks = grounding.check(self.proposal, self.execution.result, self.join_checks)
         if self.cfg.review_mode == "single":  # baseline: checks are reported but nothing reviews or corrects the answer
             self.verification.checks = checks
             return self._answer(state, question, self.proposal.draft_answer)
         earlier: tuple[ProposalPayload, Execution] | None = None
-        author = cfg.analyst
+        author = self._endpoint("analyst")
         if any(c.status == "failed" for c in checks):  # the correction cycle, before review: the Reviewer then runs once
             self._running("correct")
             mark = time.monotonic()
@@ -305,7 +307,7 @@ class Orchestrator:
             self.verification.open_issues = review.issues
             return self._answer(state, question, self.proposal.draft_answer)
         self.verification.open_issues = review.issues + grounding.failures_as_issues(checks)
-        seeds = [(cfg.analyst, p.sql, run, p.assumptions) for p, run in [earlier] if earlier and p.sql != self.proposal.sql]
+        seeds = [(self._endpoint("analyst"), p.sql, run, p.assumptions) for p, run in [earlier] if earlier and p.sql != self.proposal.sql]
         return await self._council(context, question, state, set(datasets), seeds + [(author, self.proposal.sql, self.execution, assumptions)], "dispute")
 
     # ---- steps -------------------------------------------------------------------------------------------------
@@ -506,6 +508,13 @@ class Orchestrator:
         return self._answer(state, question, verdict.final_answer)
 
     # ---- model calls -------------------------------------------------------------------------------------------
+
+    def choose_analyst(self, model: str) -> None:
+        """The user's pick answers. The Reviewer moves to another family if needed, so the review stays independent."""
+        self.overrides["analyst"] = model
+        if model_family(model) == model_family(self.cfg.reviewer):
+            self.overrides["reviewer"] = next((e for e in (self.cfg.analyst, *self.cfg.fallback_endpoints, *self.cfg.council_endpoints)
+                                               if model_family(e) != model_family(model)), self.cfg.reviewer)
 
     def _endpoint(self, role: str) -> str:
         return self.overrides.get(role) or {"analyst": self.cfg.analyst, "reviewer": self.cfg.reviewer, "adjudicator": self.cfg.adjudicator}[role]

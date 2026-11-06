@@ -28,6 +28,9 @@ env:
     value: ""
   - name: ADJUDICATOR_MODEL_ENDPOINT
     value: "databricks-qwen35-122b-a10b"
+  # Models users can pick to answer (Auto = ANALYST_MODEL_ENDPOINT). Each needs a serving-endpoint resource; unavailable ones are greyed out.
+  - name: MODEL_CHOICES
+    value: "databricks-gpt-oss-120b,databricks-llama-4-maverick,databricks-qwen35-122b-a10b,gemini-3-5-flash/gemini-3-5-flash,claude-sonnet-5-5/claude-sonnet-5-5"
   - name: COUNCIL_ENDPOINTS
     value: "databricks-gpt-oss-120b,databricks-llama-4-maverick"
   - name: MAX_MODEL_CALLS_PER_QUESTION

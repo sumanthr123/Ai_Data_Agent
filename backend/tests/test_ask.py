@@ -77,11 +77,12 @@ class FakeData:
 
 
 def run(script: dict[str, list], cfg: AskSettings = CFG, question: str = "Sales by region in 2017?", state: ConversationState | None = None,
-        cache: ResultCache | None = None, data: FakeData | None = None, search=None, council: bool = False, user: str = "local-user"):
+        cache: ResultCache | None = None, data: FakeData | None = None, search=None, council: bool = False, user: str = "local-user",
+        model: str | None = None):
     models, data = FakeModels(script), data or FakeData()
     orch = Orchestrator(cfg, data, models, AuthContext(mode="service_principal"), "sp", cache or ResultCache(60), Tracer(""),
                         user_key=user, **({"search": search} if search else {}))
-    return asyncio.run(orch.run(AskRequest(question=question, state=state or ConversationState(), council=council))), models, data
+    return asyncio.run(orch.run(AskRequest(question=question, state=state or ConversationState(), council=council, model=model))), models, data
 
 
 WEB_PLAN = {"status": "WEB", "sql": None, "assumptions": [], "search_query": "weather in Seattle today"}
@@ -278,6 +279,18 @@ class OrchestratorTests(unittest.TestCase):
         context = json.loads(models.seen[0][1].split("<context>")[1].split("</context>")[0])
         self.assertEqual(context["tables"][0]["grain"], "one row per order line (order_id, product_id)")
         self.assertEqual(context["tables"][0]["profile"]["rows"], 9994)
+
+    def test_picked_model_answers_and_review_stays_independent(self):
+        r, models, _ = run({CFG.reviewer: [PLAN, GOOD], CFG.analyst: [APPROVED]}, model=CFG.reviewer)  # pick = the Reviewer's family
+        self.assertEqual((r.status, r.verification.reviewed), ("ANSWERED", True))
+        roles = {(c.role, c.endpoint) for c in r.verification.calls}
+        self.assertEqual(roles, {("analyst", CFG.reviewer), ("reviewer", CFG.analyst)})
+
+    def test_picked_model_is_part_of_the_cache_key(self):
+        cache = ResultCache(60)
+        run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, cache=cache)
+        r, _, _ = run({CFG.reviewer: [PLAN, GOOD], CFG.analyst: [APPROVED]}, cache=cache, model=CFG.reviewer)
+        self.assertFalse(r.from_cache)
 
     def test_drop_without_comparison_defaults_to_previous_period(self):
         ask = {"status": "CLARIFY", "clarifying_question": "Compare with the prior month or the same month last year?"}

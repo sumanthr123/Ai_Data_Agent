@@ -3,14 +3,14 @@ import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState
 import { Markdown } from '../components/Markdown'
 import { SourceList } from '../components/SourceList'
 import { cn } from '../lib/cn'
-import { listDatasets } from './api'
+import { listDatasets, listModels } from './api'
 import { DatasetPanel } from './DatasetPanel'
 import { EvidenceDrawer } from './EvidenceDrawer'
-import { humanize, isMeasure, isTimeLike } from './format'
+import { humanize, isMeasure, isTimeLike, modelLabel } from './format'
 import { ResultTable } from './ResultTable'
 import { StatusSteps } from './StatusSteps'
-import { CodeAnswer, CouncilView, DocSources, KindBadge } from './AnswerParts'
-import type { AskResponse, Dataset, Turn } from './types'
+import { CodeAnswer, CouncilView, DocSources, KindBadge, ModelsUsed } from './AnswerParts'
+import type { AskResponse, Dataset, ModelOption, Turn } from './types'
 
 const ResultChart = lazy(() => import('./ResultChart').then((m) => ({ default: m.ResultChart })))  // recharts loads with the first chart
 import { useAssistant } from './useAssistant'
@@ -88,6 +88,7 @@ const TurnView = memo(function TurnView({ turn, live, onAction }: { turn: Turn; 
                 </button>
               </div>
             </div>
+            <ModelsUsed r={r} />
             {r.status === 'NEEDS_CLARIFICATION' && r.clarifying_question ? (
               <div className="space-y-2">
                 <p className="text-[14.5px] text-zinc-100">{r.clarifying_question}</p>
@@ -115,6 +116,8 @@ const TurnView = memo(function TurnView({ turn, live, onAction }: { turn: Turn; 
   )
 })
 
+const MODEL_KEY = 'assistant.model'
+
 export default function AssistantApp() {
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -124,6 +127,20 @@ export default function AssistantApp() {
   const [navOpen, setNavOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [evidenceId, setEvidenceId] = useState<string | null>(null)
+  const [models, setModels] = useState<ModelOption[]>([])
+  const [model, setModel] = useState<string | null>(() => {
+    try { return localStorage.getItem(MODEL_KEY) } catch { return null }
+  })
+  useEffect(() => { listModels().then(setModels).catch(() => setModels([])) }, [])
+  // A remembered pick that's no longer offered or available falls back to Auto.
+  const chosen = model && (!models.length || models.some((m) => m.id === model && m.available)) ? model : null
+  const pickModel = (id: string) => {
+    setModel(id || null)
+    try {
+      if (id) localStorage.setItem(MODEL_KEY, id)
+      else localStorage.removeItem(MODEL_KEY)
+    } catch { /* storage blocked: the pick lasts for this session */ }
+  }
   const feed = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLTextAreaElement>(null)
 
@@ -161,18 +178,18 @@ export default function AssistantApp() {
 
   const submit = (text = draft) => {
     if (!text.trim() || a.busy) return
-    a.ask(text, false, usable)
+    a.ask(text, false, usable, chosen)
     setDraft('')
   }
   // Stable across renders so memoized turns don't re-render; reads the latest submit/ask through the ref.
-  const latest = useRef({ submit, ask: a.ask, usable })
-  latest.current = { submit, ask: a.ask, usable }
+  const latest = useRef({ submit, ask: a.ask, usable, chosen })
+  latest.current = { submit, ask: a.ask, usable, chosen }
   const onTurnAction = useCallback((turn: Turn, action: TurnAction) => {
     if (action === 'evidence') {
       setEvidenceId(turn.id)
       setDrawerOpen(true)
     } else if (action === 'retry') latest.current.submit(turn.question)
-    else latest.current.ask(turn.question, true, latest.current.usable)
+    else latest.current.ask(turn.question, true, latest.current.usable, latest.current.chosen)
   }, [])
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -263,9 +280,19 @@ export default function AssistantApp() {
                   <button type="button" onClick={() => submit()} disabled={!draft.trim()} aria-label="Send" className="rounded-xl bg-sky-400 p-2.5 text-zinc-950 hover:bg-sky-300 disabled:bg-zinc-700 disabled:text-zinc-400"><ArrowUp className="h-4 w-4" /></button>
                 )}
               </div>
-              <p className="mt-1.5 text-center text-[11px] text-zinc-500">
-                {selected.length ? `Using ${selected.map(label).join(', ')}` : 'No dataset selected'} · Enter to send, Shift+Enter for a new line
-              </p>
+              <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+                <label className="inline-flex items-center gap-1.5">
+                  Model
+                  <select value={chosen ?? ''} onChange={(e) => pickModel(e.target.value)} disabled={a.busy}
+                    className="rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 text-[11.5px] text-zinc-200 focus:border-zinc-500 focus:outline-none">
+                    <option value="">Auto (recommended)</option>
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id} disabled={!m.available}>{modelLabel(m.id)}{m.available ? '' : ` (unavailable: ${m.note})`}</option>
+                    ))}
+                  </select>
+                </label>
+                <span>{selected.length ? `Using ${selected.map(label).join(', ')}` : 'No dataset selected'} · Enter to send, Shift+Enter for a new line</span>
+              </div>
             </div>
           </div>
         </main>

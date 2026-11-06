@@ -9,6 +9,16 @@ export const isMeasure = (name: string, type: string) => isNumericType(type) && 
 export const isTimeLike = (name: string, type: string) => /^(date|timestamp)/i.test(type) || TIME_LIKE.test(name)
 export const humanize = (name: string) => name.replace(/_/g, ' ')
 
+const MODEL_LABELS: Record<string, string> = {
+  'databricks-gpt-oss-120b': 'GPT-OSS 120B', 'databricks-llama-4-maverick': 'Llama 4 Maverick',
+  'databricks-qwen35-122b-a10b': 'Qwen 3.5 122B', 'gemini-3-5-flash': 'Gemini 3.5 Flash', 'claude-sonnet-5-5': 'Claude Sonnet 5.5',
+}
+/** "endpoint" or "endpoint/served_model" -> a readable model name. */
+export const modelLabel = (endpoint: string) => {
+  const name = endpoint.split('/').pop() ?? endpoint
+  return MODEL_LABELS[name] ?? name.replace(/^databricks-/, '')
+}
+
 export function fmtCell(value: Cell, type = ''): string {
   if (value === null || value === undefined) return 'NULL'
   if (typeof value === 'number') {

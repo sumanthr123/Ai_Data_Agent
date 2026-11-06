@@ -85,6 +85,14 @@ class AskRequest(BaseModel):
     datasets: list[str] = Field(default=[], max_length=10)
     council: bool = False  # "Verify with council": skip Tier 1 and let independent models settle it on evidence
     state: ConversationState = ConversationState()
+    model: str | None = Field(default=None, max_length=200)  # the user's Analyst pick; None = Auto
+
+
+class ModelOption(BaseModel):
+    id: str
+    family: str
+    available: bool
+    note: str = ""  # why it's unavailable
 
 
 class ExportRequest(BaseModel):

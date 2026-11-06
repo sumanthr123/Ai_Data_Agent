@@ -1,4 +1,4 @@
-import type { AskResponse, ConversationState, Dataset, StageEvent, UploadResult } from './types'
+import type { AskResponse, ConversationState, Dataset, ModelOption, StageEvent, UploadResult } from './types'
 
 async function fail(res: Response): Promise<never> {
   let message = `${res.status} ${res.statusText}`
@@ -11,6 +11,12 @@ async function fail(res: Response): Promise<never> {
 
 export async function listDatasets(): Promise<Dataset[]> {
   const res = await fetch('/api/ask/datasets')
+  if (!res.ok) await fail(res)
+  return res.json()
+}
+
+export async function listModels(): Promise<ModelOption[]> {
+  const res = await fetch('/api/ask/models')
   if (!res.ok) await fail(res)
   return res.json()
 }
@@ -32,10 +38,10 @@ export async function deleteUpload(dataset: string): Promise<void> {
 
 /** Streams stage events, resolves with the final answer. Aborting the signal cancels the run server-side too. */
 export async function streamAsk(question: string, datasets: string[], state: ConversationState | null,
-  onStage: (e: StageEvent) => void, signal: AbortSignal, council = false): Promise<AskResponse> {
+  onStage: (e: StageEvent) => void, signal: AbortSignal, council = false, model: string | null = null): Promise<AskResponse> {
   const res = await fetch('/api/ask/stream', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify({ question, datasets, state: state ?? {}, council }), signal,
+    body: JSON.stringify({ question, datasets, state: state ?? {}, council, model }), signal,
   })
   if (!res.ok || !res.body) await fail(res)
   const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader()
