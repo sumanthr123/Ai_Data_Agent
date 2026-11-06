@@ -74,10 +74,39 @@ class FakeData:
 
 
 def run(script: dict[str, list], cfg: AskSettings = CFG, question: str = "Sales by region in 2017?", state: ConversationState | None = None,
-        cache: ResultCache | None = None, data: FakeData | None = None):
+        cache: ResultCache | None = None, data: FakeData | None = None, search=None):
     models, data = FakeModels(script), data or FakeData()
-    orch = Orchestrator(cfg, data, models, AuthContext(mode="service_principal"), "sp", cache or ResultCache(60), Tracer(""))
+    orch = Orchestrator(cfg, data, models, AuthContext(mode="service_principal"), "sp", cache or ResultCache(60), Tracer(""),
+                        **({"search": search} if search else {}))
     return asyncio.run(orch.run(AskRequest(question=question, state=state or ConversationState()))), models, data
+
+
+WEB_PLAN = {"status": "WEB", "sql": None, "assumptions": [], "search_query": "weather in Seattle today"}
+
+
+def fake_search(query: str) -> dict:
+    return {"query": query, "retrieved_at": "2026-11-05 21:00 UTC", "summary": "Seattle is 9°C with light rain as of 1 PM PT [1]. Winds reach 20 km/h along the coast this afternoon.",
+            "sources": [{"n": 1, "title": "Forecast", "publisher": "NWS", "url": "https://www.weather.gov/sew", "published": "", "retrieved_at": "x"}]}
+
+
+class LiveQuestionTests(unittest.TestCase):
+    def test_live_question_is_answered_from_cited_search(self):
+        r, models, data = run({CFG.analyst: [WEB_PLAN]}, question="What's the weather in Seattle?", search=fake_search)
+        self.assertEqual(r.status, "ANSWERED")
+        self.assertIn("[1]", r.answer)
+        self.assertEqual(r.web_sources[0].url, "https://www.weather.gov/sew")
+        self.assertEqual([c.purpose for c in r.verification.calls], ["plan"])  # no SQL, no extra model calls
+        self.assertEqual(data.executed, [])
+        self.assertFalse(r.verification.reviewed)
+        self.assertIn("live web search", r.verification.degraded_reasons[0])
+        self.assertEqual(r.verification.checks[0].status, "warning")  # "Winds reach 20 km/h along the coast this afternoon." cites nothing
+
+    def test_failed_search_never_guesses(self):
+        def down(_: str) -> dict:
+            raise RuntimeError("Web search couldn't be reached")
+        r, _, _ = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?", search=down)
+        self.assertEqual(r.status, "ERROR")
+        self.assertIn("won't guess", r.answer)
 
 
 class SqlGuardTests(unittest.TestCase):

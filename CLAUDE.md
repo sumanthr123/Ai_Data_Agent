@@ -28,6 +28,8 @@ veto, and an Adjudicator runs only for disputes left after one correction. Deter
 veto too; `verification.reviewed` is true only when the Reviewer approved and every check passed. Budgets
 (calls, tokens incl. reasoning, SQL attempts) are enforced in `budget.py` before each call. Keep runtime prompts in
 `prompts.py` short; never paste build specs into them.
+Live questions (news, weather, prices) are planned as `WEB`: one grounded Google Search (`web_search.search`), answered
+with [n] citations and `web_sources`, labelled as web-sourced and not reviewed; a failed search returns ERROR, never a guess.
 
 ## Live information
 Questions about current events, weather or prices are flagged by the council (`needs_web`). The app

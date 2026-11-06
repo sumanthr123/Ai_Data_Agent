@@ -11,12 +11,14 @@ POLICY = """You are part of a governed Databricks data assistant.
 
 ANALYST_PLAN = """Role: Analyst. Plan the SQL that answers the question.
 If a metric, filter or period is ambiguous enough to change the result materially, ask one focused question instead.
-If the tables can't answer it, say exactly which data is missing.
+If the tables can't answer it, say exactly which data is missing. If it needs current information from outside the
+tables (news, weather, prices, events, anything after the data ends), return WEB with a specific search_query that
+includes the date when it matters.
 List assumptions you made (NULLs, duplicates, date boundaries, currency).
 Return only the rows the answer needs (aim for under 30): for a change, compare the asked period with its comparison
 period side by side; break down by at most one extra dimension.
-Shape: {"status":"READY"|"CLARIFY"|"INSUFFICIENT_SCHEMA","sql":string|null,"assumptions":[string],
-"clarifying_question":string|null,"missing":string|null}"""
+Shape: {"status":"READY"|"CLARIFY"|"INSUFFICIENT_SCHEMA"|"WEB","sql":string|null,"assumptions":[string],
+"clarifying_question":string|null,"missing":string|null,"search_query":string|null}"""
 
 ANALYST_FIX = """Role: Analyst. Your SQL failed. Return corrected SQL for the same question.
 Shape: {"status":"READY","sql":string,"assumptions":[string],"clarifying_question":null,"missing":null}"""

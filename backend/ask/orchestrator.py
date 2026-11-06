@@ -27,7 +27,7 @@ from backend.ask.cache import ResultCache, normalize_sql
 from backend.ask.contracts import (
     AdjudicationPayload, AnalystDraft, AnalystPlan, AskRequest, AskResponse, AuthContext, ConversationState,
     DeterministicCheck, Issue, ModelCall, ProposalPayload, ResultPreview, ReviewPayload, SourceInfo, StageEvent,
-    Verification,
+    Verification, WebSource,
 )
 from backend.ask.models import ModelClient
 from backend.ask.registry import Registry
@@ -35,7 +35,8 @@ from backend.ask.settings import AskSettings
 from backend.ask.tracing import Tracer
 from backend.ask.warehouse import Execution, QueryError, execute
 from backend.schemas import ColumnNode
-from backend.services.databricks_engine import _json_block, _plain_error
+from backend.services import web_search
+from backend.services.databricks_engine import _json_block, _plain_error, clean_citations
 from backend.services.sql_safety import UnsafeSqlError
 
 Role = Literal["analyst", "reviewer", "adjudicator"]
@@ -87,11 +88,12 @@ def _data(kind: str, text: str) -> str:
 class Orchestrator:
     def __init__(self, cfg: AskSettings, data: DataAccess, llm: ModelClient, auth: AuthContext, auth_key: str,
                  cache: ResultCache, tracer: Tracer, cancelled: threading.Event | None = None, registry: Registry | None = None,
-                 user_key: str = "local-user", on_event: Callable[[StageEvent], None] | None = None) -> None:
+                 user_key: str = "local-user", on_event: Callable[[StageEvent], None] | None = None,
+                 search: Callable[[str], dict[str, Any]] = web_search.search) -> None:
         self.cfg, self.data, self.llm, self.auth, self.auth_key, self.cache, self.tracer = cfg, data, llm, auth, auth_key, cache, tracer
         self.cancelled = cancelled or threading.Event()
         self.registry, self.user_key = registry or Registry(cfg, None), user_key
-        self.on_event = on_event
+        self.on_event, self.search = on_event, search
         self.meta: dict[str, list[ColumnNode]] = {}
         self.join_checks: list[DeterministicCheck] = []
         self.budget = Budget(cfg.max_model_calls, cfg.max_total_tokens, cfg.max_sql_attempts)
@@ -166,6 +168,9 @@ class Orchestrator:
             self._event("clarify", "succeeded", mark)
             state.pending_clarification, state.last_question = plan.clarifying_question, question
             return self._finish("NEEDS_CLARIFICATION", state, clarifying_question=plan.clarifying_question, assumptions=plan.assumptions)
+        if plan.status == "WEB" and plan.search_query:
+            self._event("generate_sql", "skipped", mark, "needs live information")
+            return await self._web(state, question, plan.search_query)
         if plan.status == "INSUFFICIENT_SCHEMA" or not plan.sql:
             self._event("generate_sql", "skipped", mark, "data not available")
             missing = (plan.missing or "the data needed isn't in these tables").strip().rstrip(".")
@@ -432,6 +437,27 @@ class Orchestrator:
         answer, truncated = grounding.cap_words(text, self.cfg.max_answer_words)
         return self._finish("ANSWERED", state, question=question, answer=answer, answer_truncated=truncated,
                             hypotheses=self.proposal.hypotheses if self.proposal else [])
+
+    async def _web(self, state: ConversationState, question: str, query: str) -> AskResponse:
+        """Live question: one grounded Google Search; the answer cites the pages it came from and is labelled as such."""
+        self._running("web_search")
+        mark = time.monotonic()
+        self.sources = []
+        try:
+            found = await asyncio.to_thread(self.search, query)
+        except Exception as exc:
+            self._event("web_search", "failed", mark, _plain_error(exc))
+            return self._finish("ERROR", state, answer=f"Live search didn't work, so I won't guess: {_plain_error(exc)}")
+        answer, truncated = grounding.cap_words(found["summary"], self.cfg.max_answer_words)
+        answer, uncited = clean_citations(answer, len(found["sources"]))
+        self.verification.checks = [DeterministicCheck(
+            name="citations", status="warning" if uncited or not found["sources"] else "passed",
+            detail=f"{uncited} statement(s) with figures cite no source" if uncited else f"{len(found['sources'])} source(s) cited")]
+        self.verification.degraded_reasons.append(
+            f"From a live web search ({found['retrieved_at']}), not from your data; only as reliable as the cited pages.")
+        self._event("web_search", "succeeded", mark, f"{len(found['sources'])} source(s)")
+        return self._finish("ANSWERED", state, question=question, answer=answer, answer_truncated=truncated,
+                            web_sources=[WebSource(**s) for s in found["sources"] if s.get("url")])
 
     def _unresolved(self, state: ConversationState, question: str, reason: str) -> AskResponse:
         issues = "\n".join(f"- {i.description}" for i in self.verification.open_issues[:5])

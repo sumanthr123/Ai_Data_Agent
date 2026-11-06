@@ -1,6 +1,7 @@
-import { AlertTriangle, ArrowUp, CircleCheck, FileSearch, Menu, PanelRight, RotateCcw, ShieldAlert, Square, X } from 'lucide-react'
+import { AlertTriangle, ArrowUp, CircleCheck, FileSearch, Globe, Menu, PanelRight, RotateCcw, ShieldAlert, Square, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Markdown } from '../components/Markdown'
+import { SourceList } from '../components/SourceList'
 import { cn } from '../lib/cn'
 import { listDatasets } from './api'
 import { DatasetPanel } from './DatasetPanel'
@@ -35,6 +36,7 @@ function starters(datasets: Dataset[]): string[] {
 
 function Verdict({ r }: { r: AskResponse }) {
   const v = r.verification
+  if (r.status === 'ANSWERED' && r.web_sources?.length) return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-sky-300"><Globe className="h-4 w-4" /> Live web search · {r.web_sources.length} source{r.web_sources.length === 1 ? '' : 's'}</span>
   if (r.status === 'ANSWERED' && v.reviewed) return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-300"><CircleCheck className="h-4 w-4" /> Independently reviewed</span>
   if (r.status === 'ANSWERED') return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-300"><ShieldAlert className="h-4 w-4" /> Not independently reviewed</span>
   if (r.status === 'NEEDS_CLARIFICATION') return <span className="text-[12px] font-medium text-sky-300">Needs one detail</span>
@@ -77,7 +79,8 @@ function TurnView({ turn, live, onEvidence, onRetry }: { turn: Turn; live: boole
                 <p className="text-[14.5px] text-zinc-100">{r.clarifying_question}</p>
                 <p className="text-[12.5px] text-zinc-400">Reply in the box below; your answer is applied to this question.</p>
               </div>
-            ) : r.answer && <Markdown text={r.answer} />}
+            ) : r.answer && <Markdown text={r.answer} sources={r.web_sources} />}
+            {!!r.web_sources?.length && <SourceList sources={r.web_sources} />}
             {r.answer_truncated && <p className="text-[12px] text-zinc-400">Shortened to the answer length limit; ask for a full breakdown to see more.</p>}
             {r.hypotheses.length > 0 && (
               <details className="rounded-lg border border-zinc-800 p-3 text-[13px]">

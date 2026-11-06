@@ -1,6 +1,7 @@
 // Mirrors backend/ask/contracts.py.
+import type { Source } from '../types/consensus'
 
-export type Stage = 'context' | 'clarify' | 'generate_sql' | 'execute' | 'draft' | 'review' | 'correct' | 'adjudicate' | 'complete'
+export type Stage = 'context' | 'clarify' | 'generate_sql' | 'web_search' | 'execute' | 'draft' | 'review' | 'correct' | 'adjudicate' | 'complete'
 export type StageStatus = 'running' | 'succeeded' | 'failed' | 'skipped'
 export interface StageEvent { stage: Stage; status: StageStatus; ms: number; detail: string }
 
@@ -49,7 +50,7 @@ export type AskStatus = 'ANSWERED' | 'NEEDS_CLARIFICATION' | 'INSUFFICIENT_SCHEM
 export interface AskResponse {
   status: AskStatus; answer: string; answer_truncated: boolean; clarifying_question: string | null; hypotheses: string[]
   assumptions: string[]; query_id: string | null; sql: string | null; filters: string[]; result: ResultPreview | null
-  sources: SourceInfo[]; verification: Verification; auth: { mode: 'user' | 'service_principal'; disclosure: string }
+  sources: SourceInfo[]; web_sources?: Source[]; verification: Verification; auth: { mode: 'user' | 'service_principal'; disclosure: string }
   state: ConversationState; events: StageEvent[]; total_ms: number
 }
 

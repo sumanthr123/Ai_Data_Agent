@@ -2,7 +2,7 @@ import { CircleCheck, CircleDashed, CircleMinus, CircleX, LoaderCircle } from 'l
 import type { Stage, StageEvent, StageStatus } from './types'
 
 const LABELS: Partial<Record<Stage, string>> = {
-  context: 'Profiling data', clarify: 'Checking the question', generate_sql: 'Generating SQL', execute: 'Executing query',
+  context: 'Profiling data', clarify: 'Checking the question', generate_sql: 'Generating SQL', web_search: 'Searching the web', execute: 'Executing query',
   draft: 'Writing answer', review: 'Independent review', correct: 'Correcting', adjudicate: 'Adjudicating', complete: 'Complete',
 }
 const MAIN: Stage[] = ['context', 'generate_sql', 'execute', 'draft', 'review', 'complete']
@@ -19,7 +19,8 @@ export function StatusIcon({ status }: { status: StageStatus | 'pending' }) {
 /** Steps reflect real events only: a step is pending until the server reports it running. */
 export function StatusSteps({ stages, live }: { stages: StageEvent[]; live: boolean }) {
   const seen = new Set(stages.map((s) => s.stage))
-  const order: Stage[] = MAIN.flatMap((s) => (s === 'complete' ? (['correct', 'adjudicate', 'clarify'] as Stage[]).filter((x) => seen.has(x)).concat(s) : [s]))
+  const main: Stage[] = seen.has('web_search') ? ['context', 'generate_sql', 'web_search', 'complete'] : MAIN
+  const order: Stage[] = main.flatMap((s) => (s === 'complete' ? (['correct', 'adjudicate', 'clarify'] as Stage[]).filter((x) => seen.has(x)).concat(s) : [s]))
   const steps = order.map((stage) => {
     const events = stages.filter((s) => s.stage === stage)
     const last = events.at(-1)

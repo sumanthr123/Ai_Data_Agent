@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion'
-import { BarChart3, BookOpen, Calculator, ChevronDown, Database, ExternalLink, Globe, Lightbulb, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { BarChart3, BookOpen, Calculator, ChevronDown, Database, Globe, Lightbulb, RotateCcw, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { cn, spring } from '../lib/cn'
 import { normalizeSql, SqlBlock } from '../lib/code'
 import type { Check, Consensus, LaneState, Mode } from '../types/consensus'
 import { CodeBlock } from './CodeBlock'
 import { Markdown } from './Markdown'
+import { SourceList } from './SourceList'
 import { StatusIcon } from './ParallelRaceTrace'
 import { useToast } from './Toast'
 
@@ -94,21 +95,7 @@ export function VerifiedWinnerCard({ question, consensus, lanes, mode, details, 
         </ul>
       )}
       {!consensus.strict_format && consensus.sources?.length > 0 && (
-        <ol className="mt-4 space-y-1.5" aria-label="Sources">
-          {consensus.sources.map((s) => (
-            <li key={s.n} className="flex gap-2 text-[12.5px]">
-              <span className="mt-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-sky-400/15 text-[10.5px] font-semibold text-sky-200">{s.n}</span>
-              <span className="min-w-0">
-                <a href={s.url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1 text-slate-100 hover:text-sky-200 hover:underline">
-                  {s.title} <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
-                </a>
-                <span className="block text-slate-400">
-                  {[s.publisher, s.published && `published ${s.published}`, s.retrieved_at && `retrieved ${s.retrieved_at}`].filter(Boolean).join(' · ')}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ol>
+        <SourceList sources={consensus.sources} />
       )}
       <div className="mt-4 flex flex-wrap items-center gap-2 text-[12.5px]">
         {onOpenData && !consensus.strict_format && (

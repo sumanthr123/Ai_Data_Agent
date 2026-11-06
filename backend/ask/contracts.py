@@ -13,8 +13,9 @@ CheckStatus = Literal["passed", "failed", "warning", "skipped"]
 # ---- model exchange ----------------------------------------------------------------------------------------------
 
 class AnalystPlan(BaseModel):
-    status: Literal["READY", "CLARIFY", "INSUFFICIENT_SCHEMA"]
+    status: Literal["READY", "CLARIFY", "INSUFFICIENT_SCHEMA", "WEB"]
     sql: str | None = None
+    search_query: str | None = None
     assumptions: list[str] = []
     clarifying_question: str | None = None
     missing: str | None = None
@@ -140,10 +141,19 @@ class AuthContext(BaseModel):
 
 
 class StageEvent(BaseModel):
-    stage: Literal["context", "clarify", "generate_sql", "execute", "draft", "review", "correct", "adjudicate", "complete"]
+    stage: Literal["context", "clarify", "generate_sql", "web_search", "execute", "draft", "review", "correct", "adjudicate", "complete"]
     status: Literal["running", "succeeded", "failed", "skipped"]
     ms: int = 0
     detail: str = ""
+
+
+class WebSource(BaseModel):
+    n: int
+    title: str = ""
+    publisher: str = ""
+    url: str
+    published: str = ""
+    retrieved_at: str = ""
 
 
 class AskResponse(BaseModel):
@@ -158,6 +168,7 @@ class AskResponse(BaseModel):
     filters: list[str] = []
     result: ResultPreview | None = None
     sources: list[SourceInfo] = []
+    web_sources: list[WebSource] = []
     verification: Verification = Verification()
     auth: AuthContext
     state: ConversationState
