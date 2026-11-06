@@ -32,10 +32,10 @@ export async function deleteUpload(dataset: string): Promise<void> {
 
 /** Streams stage events, resolves with the final answer. Aborting the signal cancels the run server-side too. */
 export async function streamAsk(question: string, datasets: string[], state: ConversationState | null,
-  onStage: (e: StageEvent) => void, signal: AbortSignal): Promise<AskResponse> {
+  onStage: (e: StageEvent) => void, signal: AbortSignal, council = false): Promise<AskResponse> {
   const res = await fetch('/api/ask/stream', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify({ question, datasets, state: state ?? {} }), signal,
+    body: JSON.stringify({ question, datasets, state: state ?? {}, council }), signal,
   })
   if (!res.ok || !res.body) await fail(res)
   const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader()

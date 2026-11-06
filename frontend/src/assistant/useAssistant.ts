@@ -66,7 +66,7 @@ export function useAssistant(defaultDatasets: string[]) {
     update(activeId, (c) => ({ ...c, datasets, state: c.state ? { ...c.state, active_datasets: datasets, applied_filters: [], last_sql: null } : null }))
   }, [activeId, start, update])
 
-  const ask = useCallback(async (question: string) => {
+  const ask = useCallback(async (question: string, council = false) => {
     if (busy || !question.trim()) return
     const conversation = active ?? start()
     const turn: Turn = { id: newId(), question: question.trim(), stages: [], datasets: conversation.datasets }
@@ -79,7 +79,7 @@ export function useAssistant(defaultDatasets: string[]) {
     setBusy(true)
     try {
       const response = await streamAsk(turn.question, conversation.datasets, conversation.state,
-        (event) => updateTurn(conversation.id, turn.id, (t) => ({ ...t, stages: mergeStage(t.stages, event) })), abort.signal)
+        (event) => updateTurn(conversation.id, turn.id, (t) => ({ ...t, stages: mergeStage(t.stages, event) })), abort.signal, council)
       updateTurn(conversation.id, turn.id, (t) => ({ ...t, response }))
       update(conversation.id, (c) => ({ ...c, state: response.state }))
     } catch (err) {

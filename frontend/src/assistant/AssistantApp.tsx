@@ -10,6 +10,7 @@ import { humanize, isMeasure, isTimeLike } from './format'
 import { ResultChart } from './ResultChart'
 import { ResultTable } from './ResultTable'
 import { StatusSteps } from './StatusSteps'
+import { CodeAnswer, CouncilView, DocSources, KindBadge } from './AnswerParts'
 import type { AskResponse, Dataset, Turn } from './types'
 import { useAssistant } from './useAssistant'
 
@@ -37,6 +38,9 @@ function starters(datasets: Dataset[]): string[] {
 function Verdict({ r }: { r: AskResponse }) {
   const v = r.verification
   if (r.status === 'ANSWERED' && r.web_sources?.length) return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-sky-300"><Globe className="h-4 w-4" /> Live web search · {r.web_sources.length} source{r.web_sources.length === 1 ? '' : 's'}</span>
+  if (r.status === 'ANSWERED' && r.kind === 'docs') return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-300"><CircleCheck className="h-4 w-4" /> Checked against the cited docs</span>
+  if (r.status === 'ANSWERED' && r.kind === 'code') return <span className="text-[12px] font-medium text-zinc-300">Static checks only; not executed</span>
+  if (r.status === 'ANSWERED' && r.kind === 'chat') return null
   if (r.status === 'ANSWERED' && v.reviewed) return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-300"><CircleCheck className="h-4 w-4" /> Independently reviewed</span>
   if (r.status === 'ANSWERED') return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-300"><ShieldAlert className="h-4 w-4" /> Not independently reviewed</span>
   if (r.status === 'NEEDS_CLARIFICATION') return <span className="text-[12px] font-medium text-sky-300">Needs one detail</span>
@@ -45,7 +49,7 @@ function Verdict({ r }: { r: AskResponse }) {
   return <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-300"><AlertTriangle className="h-4 w-4" /> {r.status === 'UNRESOLVED' ? 'Unverified' : 'Stopped at budget'}</span>
 }
 
-function TurnView({ turn, live, onEvidence, onRetry }: { turn: Turn; live: boolean; onEvidence: () => void; onRetry: () => void }) {
+function TurnView({ turn, live, onEvidence, onRetry, onCouncil }: { turn: Turn; live: boolean; onEvidence: () => void; onRetry: () => void; onCouncil: () => void }) {
   const r = turn.response
   return (
     <article className="space-y-3">
@@ -64,10 +68,13 @@ function TurnView({ turn, live, onEvidence, onRetry }: { turn: Turn; live: boole
         {r && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-800 pt-3">
-              <Verdict r={r} />
+              <span className="flex flex-wrap items-center gap-2"><KindBadge kind={r.kind ?? 'data'} /><Verdict r={r} /></span>
               <div className="flex items-center gap-2">
                 {(r.status === 'ERROR' || r.status === 'BUDGET_EXHAUSTED') && (
                   <button type="button" onClick={onRetry} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-zinc-300 hover:bg-zinc-800"><RotateCcw className="h-3.5 w-3.5" /> Retry</button>
+                )}
+                {(r.kind ?? 'data') === 'data' && r.sql && !r.council && !live && (
+                  <button type="button" onClick={onCouncil} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-zinc-300 hover:bg-zinc-800">Verify with council</button>
                 )}
                 <button type="button" onClick={onEvidence} className="inline-flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1 text-[12px] text-zinc-100 hover:bg-zinc-800">
                   <FileSearch className="h-3.5 w-3.5" /> Evidence
@@ -81,6 +88,9 @@ function TurnView({ turn, live, onEvidence, onRetry }: { turn: Turn; live: boole
               </div>
             ) : r.answer && <Markdown text={r.answer} sources={r.web_sources} />}
             {!!r.web_sources?.length && <SourceList sources={r.web_sources} />}
+            {r.code && <CodeAnswer code={r.code} />}
+            {!!r.doc_sources?.length && <DocSources sources={r.doc_sources} />}
+            {r.council && <CouncilView council={r.council} />}
             {r.answer_truncated && <p className="text-[12px] text-zinc-400">Shortened to the answer length limit; ask for a full breakdown to see more.</p>}
             {r.hypotheses.length > 0 && (
               <details className="rounded-lg border border-zinc-800 p-3 text-[13px]">
@@ -220,7 +230,7 @@ export default function AssistantApp() {
               {turns.map((t, i) => (
                 <TurnView key={t.id} turn={t} live={a.busy && i === turns.length - 1}
                   onEvidence={() => { setEvidenceId(t.id); setDrawerOpen(true) }}
-                  onRetry={() => submit(t.question)} />
+                  onRetry={() => submit(t.question)} onCouncil={() => a.ask(t.question, true)} />
               ))}
             </div>
           </div>

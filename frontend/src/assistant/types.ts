@@ -1,7 +1,7 @@
 // Mirrors backend/ask/contracts.py.
 import type { Source } from '../types/consensus'
 
-export type Stage = 'context' | 'clarify' | 'generate_sql' | 'web_search' | 'execute' | 'draft' | 'review' | 'correct' | 'adjudicate' | 'complete'
+export type Stage = 'context' | 'clarify' | 'generate_sql' | 'web_search' | 'retrieve' | 'execute' | 'draft' | 'review' | 'correct' | 'council' | 'adjudicate' | 'complete'
 export type StageStatus = 'running' | 'succeeded' | 'failed' | 'skipped'
 export interface StageEvent { stage: Stage; status: StageStatus; ms: number; detail: string }
 
@@ -18,7 +18,7 @@ export interface ConversationState {
 export interface Issue { severity: 'high' | 'medium' | 'low'; category: string; description: string }
 export interface Check { name: string; status: 'passed' | 'failed' | 'warning' | 'skipped'; detail: string }
 export interface ModelCall {
-  role: 'analyst' | 'reviewer' | 'adjudicator'; purpose: string; endpoint: string
+  role: 'analyst' | 'reviewer' | 'adjudicator' | 'council'; purpose: string; endpoint: string
   status: 'ok' | 'failed' | 'timed_out' | 'skipped_budget'; latency_ms: number
   prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; cost_estimate_usd: number | null; error: string | null
 }
@@ -47,10 +47,18 @@ export interface SourceInfo {
   date_range: string[] | null; warnings: string[]; expires_at: string | null
 }
 export type AskStatus = 'ANSWERED' | 'NEEDS_CLARIFICATION' | 'INSUFFICIENT_SCHEMA' | 'UNRESOLVED' | 'BUDGET_EXHAUSTED' | 'ERROR'
+export interface CouncilCandidate { label: string; endpoint: string; status: 'executed' | 'failed' | 'abstained'; sql: string | null; row_count: number | null; group: number | null; note: string }
+export interface CouncilInfo {
+  trigger: 'dispute' | 'requested'; agreement: 'full' | 'partial' | 'conflict' | 'single'; candidates: CouncilCandidate[]
+  judge: string; chosen: string | null; rationale: string; disagreement: string | null
+}
+export interface DocSource { n: number; file: string; section: string; excerpt: string }
+export interface CodeInfo { language: 'sql' | 'python' | 'other'; code: string; validation: 'validated' | 'syntax_ok' | 'not_run' | 'failed' | 'untested'; detail: string; destructive: boolean }
 export interface AskResponse {
+  kind: 'data' | 'web' | 'docs' | 'code' | 'chat'
   status: AskStatus; answer: string; answer_truncated: boolean; clarifying_question: string | null; hypotheses: string[]
   assumptions: string[]; query_id: string | null; sql: string | null; filters: string[]; result: ResultPreview | null
-  sources: SourceInfo[]; web_sources?: Source[]; verification: Verification; auth: { mode: 'user' | 'service_principal'; disclosure: string }
+  sources: SourceInfo[]; web_sources?: Source[]; council?: CouncilInfo | null; doc_sources?: DocSource[]; code?: CodeInfo | null; verification: Verification; auth: { mode: 'user' | 'service_principal'; disclosure: string }
   state: ConversationState; events: StageEvent[]; total_ms: number
 }
 
