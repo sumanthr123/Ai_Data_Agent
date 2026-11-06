@@ -19,15 +19,17 @@ env:
     value: "orders"
   - name: UC_UPLOAD_VOLUME
     value: "uploads"
+  # Databricks-hosted models (no external credits needed); three families. Gemini or Claude can return here by config.
   - name: ANALYST_MODEL_ENDPOINT
-    value: "gemini-3-5-flash"
-  - name: REVIEWER_MODEL_ENDPOINT
     value: "databricks-gpt-oss-120b"
-  # Higher-tier Gemini until the Anthropic account has credits; then claude-sonnet-5-5/claude-sonnet-5-5.
+  - name: REVIEWER_MODEL_ENDPOINT
+    value: "databricks-llama-4-maverick"
+  - name: REVIEWER_REASONING_EFFORT
+    value: ""
   - name: ADJUDICATOR_MODEL_ENDPOINT
-    value: "gemini-3-5-flash/gemini-pro-latest"
+    value: "databricks-qwen35-122b-a10b"
   - name: COUNCIL_ENDPOINTS
-    value: "gemini-3-5-flash,databricks-gpt-oss-120b"
+    value: "databricks-gpt-oss-120b,databricks-llama-4-maverick"
   - name: MAX_MODEL_CALLS_PER_QUESTION
     value: "6"
   - name: MAX_SQL_ATTEMPTS

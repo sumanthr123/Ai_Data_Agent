@@ -15,9 +15,11 @@ Names below are this deployment's (`ai-data-agent`, catalog `ai_data_agent`). Re
 | Table `ai_data_agent.orders.superstore` | SELECT | answer questions | app resource `superstore-table` | ✅ |
 | Volume `ai_data_agent.orders.uploads` | READ VOLUME, WRITE VOLUME | stage uploaded files | app resources `uploads-volume`, `uploads-volume-read` | ✅ |
 | Schema `ai_data_agent.user_uploads` | USE SCHEMA, CREATE TABLE, SELECT | create upload tables and the registry (the app then owns them) | direct grant, 2026-11-05 | ✅ |
-| Serving endpoint `gemini-3-5-flash` | CAN QUERY | Analyst, Adjudicator (`gemini-pro-latest` on this endpoint) | app resource | ✅ |
-| Serving endpoint `databricks-gpt-oss-120b` | CAN QUERY | Reviewer | app resource `gpt-oss-120b` | ✅ |
-| Serving endpoint `claude-sonnet-5-5` | CAN QUERY | optional Adjudicator once credits exist; classic chat | app resource | ✅ |
+| Serving endpoint `databricks-gpt-oss-120b` | CAN QUERY | Analyst, council member | app resource `gpt-oss-120b` | ✅ |
+| Serving endpoint `databricks-llama-4-maverick` | CAN QUERY | Reviewer, council member | app resource `llama-4-maverick` | ⏳ re-add at next deploy |
+| Serving endpoint `databricks-qwen35-122b-a10b` | CAN QUERY | Council judge (disputes only) | app resource `qwen35-122b` | ⏳ re-add at next deploy |
+| Serving endpoint `gemini-3-5-flash` | CAN QUERY | Optional (out of Google credits since 2026-11-06) | app resource | ✅ |
+| Serving endpoint `claude-sonnet-5-5` | CAN QUERY | Optional council member once credits exist | app resource | ✅ |
 | Secret `ai_data_agent/gemini_api_key` | READ | web search in the classic chat | app resource `gemini-api-key` | ✅ |
 
 Check: the app principal has **no** MODIFY, CREATE TABLE or ownership on `ai_data_agent.orders`, and no privileges on
@@ -29,10 +31,11 @@ SHOW GRANTS `e572c2cb-a6ae-4943-9419-68439ce6dda5` ON SCHEMA ai_data_agent.user_
 SHOW GRANTS `e572c2cb-a6ae-4943-9419-68439ce6dda5` ON TABLE ai_data_agent.orders.superstore;
 ```
 
-### Removed 2026-11-05 (least privilege)
+### Changes
 
-`llama-3-3-70b`, `llama-4-maverick` and `qwen35-122b` were removed from the app's resources; the app no longer calls
-them. Changing an app's resources stops it and clears its deployment: run `databricks apps start` and
+2026-11-05: `llama-3-3-70b`, `llama-4-maverick` and `qwen35-122b` were removed (unused then). 2026-11-06: Gemini ran
+out of Google credits, so the roles moved to Databricks-hosted models; `llama-4-maverick` and `qwen35-122b` come back,
+`llama-3-3-70b` stays removed. Changing an app's resources stops it and clears its deployment: run `databricks apps start` and
 `databricks apps deploy` (same source path) afterwards.
 
 ## 2. Users of the app
