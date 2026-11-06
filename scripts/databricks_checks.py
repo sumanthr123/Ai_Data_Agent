@@ -10,8 +10,29 @@ import argparse
 import asyncio
 import os
 import sys
+import threading
 import unittest
 from pathlib import Path
+from typing import Any, Callable
+
+
+def _in_thread(fn: Callable[[], Any]) -> Any:
+    """Job tasks run inside a notebook kernel whose event loop is already running, so asyncio.run() is refused there.
+    A plain thread has no loop of its own."""
+    out: dict[str, Any] = {}
+
+    def target() -> None:
+        try:
+            out["value"] = fn()
+        except BaseException as exc:  # re-raised in the caller
+            out["error"] = exc
+
+    t = threading.Thread(target=target)
+    t.start()
+    t.join()
+    if "error" in out:
+        raise out["error"]
+    return out.get("value")
 
 
 def main() -> int:
@@ -26,7 +47,7 @@ def main() -> int:
     os.environ["DATABRICKS_WAREHOUSE_ID"] = args.warehouse_id
 
     print("== backend unit tests", flush=True)
-    result = unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.discover("backend/tests", top_level_dir="."))
+    result = _in_thread(lambda: unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.discover("backend/tests", top_level_dir=".")))
     if not result.wasSuccessful():
         print("Unit tests failed; skipping the live evaluation.")
         return 1
@@ -36,10 +57,11 @@ def main() -> int:
         from evals import run_evals  # imported after the warehouse id is set: settings read it at import
 
         only = None if args.evals == "all" else {int(x) for x in args.evals.split(",")}
-        asyncio.run(run_evals.main(only))
+        _in_thread(lambda: asyncio.run(run_evals.main(only)))
         print(f"\nReport written to {root / 'evals' / 'REPORT.md'}")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if main():  # sys.exit(0) would show as an error in a job; only failures raise
+        raise SystemExit(1)
