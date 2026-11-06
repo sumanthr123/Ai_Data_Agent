@@ -39,6 +39,7 @@ publication date); claims get [n] markers from Gemini's grounding supports. Mode
 untrusted evidence; uncited figures are flagged. If search fails, the app says so and doesn't guess.
 
 ## Tests
+`scripts/check.sh` is the pre-deploy gate (no hosted CI: local git, Databricks Free Edition).
 ```bash
 .venv/bin/python -m unittest discover -s backend/tests -t .   # backend (fake models, warehouse and search)
 cd frontend && node --test src/lib/markdown.test.ts src/assistant/format.test.ts   # links, citations, SQL layout

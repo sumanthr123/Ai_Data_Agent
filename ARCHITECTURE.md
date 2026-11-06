@@ -167,3 +167,19 @@ What this shows, and what it doesn't:
 - 19 cases is a small sample, and model output varies from run to run. In the first run, one debate case failed
   because the Analyst's reply didn't match the JSON contract, not because of the injection; the one-retry fix addressed
   that. Re-run before relying on these numbers, and add cases from real user questions.
+
+## Routing and the council (2026-11-06)
+
+The Analyst's plan call also routes, so routing costs no extra call: `CHAT` (answered by the plan), `DOCS` (BM25 over
+the repo docs in `knowledge.py`; answers cite passages and every figure must appear in a cited passage), `CODE`
+(`code_check.py`: SQL planned with `EXPLAIN` on the warehouse, Python parsed; never executed; destructive operations
+flagged; one repair), `WEB` (one grounded search) and `READY` (data).
+
+Tiers: Tier 0 = chat, web, docs and code (one model plus deterministic checks). Tier 1 = data (Analyst, checks,
+Reviewer). Tier 2 = the council, run when the Reviewer still rejects after one correction or when the user clicks
+"Verify with council" (`council: true`). Members in `COUNCIL_ENDPOINTS` that haven't answered yet draft SQL
+independently; every query runs read-only; results are grouped by value (`compare_pair`: match, extra columns or
+percent vs fraction agree). The judge is the first of `ADJUDICATOR_MODEL_ENDPOINT`, then the members, whose family
+didn't author the leading result. It sees the candidates anonymised and shuffled, and its answer must pass the same
+grounding checks. `reviewed` is true only when another model's independent query reproduced the chosen values.
+Known limit: with Claude unavailable there are two families, so the judge is also a candidate author (anonymity only).
