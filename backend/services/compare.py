@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
-from backend.schemas import ModelResult, ResultSet
+from backend.schemas import ResultSet
 
 
 def _decimals(x: float) -> int:
@@ -128,69 +128,3 @@ def _scale_match(xs: list[Any], ys: list[Any]) -> bool:
     if not nums or len(nums) != len(xs):
         return False
     return all(values_match(x * 100, y) for x, y in nums) or all(values_match(x, y * 100) for x, y in nums)
-
-
-@dataclass
-class Comparison:
-    groups: list[list[int]]  # lanes whose values are mutually consistent, largest first
-    kind: str  # match | partial | conflict | different | incomplete | none | single
-    notes: dict[int, str]  # per-lane explanation relative to the reference lane
-    missing: dict[int, list[str]]  # per-lane measures other models returned but this one lacks
-
-
-def compare_results(results: list[ModelResult], names: dict[int, str], requested: list[tuple[str, ...]] | None = None) -> Comparison:
-    """`requested`: name fragments of the metrics the question asks for. A lane only counts as missing a field when that
-    field was requested; extra columns another model chose to add are not something the others "omitted"."""
-    ok = [r for r in results if r.result is not None and not r.error]
-    if not ok:
-        return Comparison([], "none", {}, {})
-    if len(ok) == 1:
-        return Comparison([[ok[0].lane]], "single", {}, {})
-    # Union lanes whose results don't conflict (match, extra/missing fields, or a subset of rows).
-    parent = {r.lane: r.lane for r in ok}
-
-    def find(x: int) -> int:
-        while parent[x] != x:
-            x = parent[x]
-        return x
-
-    pairs: dict[tuple[int, int], PairResult] = {}
-    for i, a in enumerate(ok):
-        for b in ok[i + 1:]:
-            p = compare_pair(a.result, b.result)  # type: ignore[arg-type]
-            pairs[(a.lane, b.lane)] = p
-            if p.relation in ("match", "missing_fields", "scale"):
-                parent[find(a.lane)] = find(b.lane)
-    buckets: dict[int, list[int]] = {}
-    for r in ok:
-        buckets.setdefault(find(r.lane), []).append(r.lane)
-    groups = sorted(buckets.values(), key=len, reverse=True)
-
-    missing: dict[int, list[str]] = {}
-    notes: dict[int, str] = {}
-    for (a, b), p in pairs.items():
-        if p.relation == "missing_fields":
-            if p.a_missing:
-                missing.setdefault(a, []).extend(x for x in p.a_missing if x not in missing.get(a, []))
-            if p.b_missing:
-                missing.setdefault(b, []).extend(x for x in p.b_missing if x not in missing.get(b, []))
-        for lane, other in ((a, b), (b, a)):
-            if p.relation in ("conflict", "disjoint", "row_subset") and lane not in groups[0] and other in groups[0]:
-                notes.setdefault(lane, f"{names.get(lane, lane)} vs {names.get(other, other)}: {p.detail}")
-            if p.relation == "scale":
-                notes.setdefault(lane, p.detail)
-    if requested is not None:
-        missing = {lane: kept for lane, cols in missing.items()
-                   if (kept := [c for c in cols if any(f in c.lower() for frags in requested for f in frags)])}
-    for lane, cols in missing.items():
-        notes.setdefault(lane, f"{names.get(lane, lane)} returned matching values but omitted {', '.join(cols)}, which the question asks for")
-
-    top = groups[0]
-    value_conflict = any(p.relation == "conflict" for p in pairs.values())
-    if len(top) == len(ok):  # failed lanes are reported by the execution check, not as disagreement
-        kind = "incomplete" if missing else "match"
-    elif len(top) >= 2:
-        kind = "partial"
-    else:  # different row sets or groupings are not the same thing as conflicting numbers
-        kind = "conflict" if value_conflict else "different"
-    return Comparison(groups, kind, notes, missing)

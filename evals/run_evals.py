@@ -36,7 +36,7 @@ from backend.ask.registry import Registry
 from backend.ask.settings import AskSettings, ask_settings
 from backend.ask.tracing import Tracer
 from backend.ask.warehouse import execute
-from backend.services.databricks_engine import _json_block
+from backend.ask.text import json_block
 
 HERE = Path(__file__).parent
 SUPERSTORE = "ai_data_agent.orders.superstore"
@@ -96,7 +96,7 @@ class Faults:
         if self.fired or endpoint != self.cfg.analyst:
             return result
         try:
-            obj = _json_block(result.text)
+            obj = json_block(result.text)
         except (ValueError, json.JSONDecodeError):
             return result
         if self.fault == "draft_number" and "Write the answer from the executed result" in system and obj.get("draft_answer"):
@@ -106,7 +106,7 @@ class Faults:
                 self.injected = wrong
                 obj["draft_answer"] = obj["draft_answer"][:match.start()] + f"{wrong:,.2f}" + obj["draft_answer"][match.end():]
                 self.fired = True
-        elif self.fault == "sql_avg" and "Plan the SQL" in system and obj.get("sql") and re.search(r"\bSUM\(", obj["sql"], re.I):
+        elif self.fault == "sql_avg" and "plan the SQL" in system and obj.get("sql") and re.search(r"\bSUM\(", obj["sql"], re.I):
             obj["sql"] = re.sub(r"\bSUM\(", "AVG(", obj["sql"], count=1, flags=re.I)
             self.fired = True
         if self.fired:

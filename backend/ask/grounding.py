@@ -9,7 +9,7 @@ from typing import Any
 from backend.ask.contracts import DeterministicCheck, Issue, ProposalPayload
 from backend.schemas import ResultSet
 from backend.services import analysis
-from backend.services.databricks_engine import _table_markdown, _unsupported_numbers
+from backend.ask.text import table_markdown, unsupported_numbers
 
 # Allows up to two words in between: "driven primarily by", "due largely to", "caused mainly by".
 CAUSAL = re.compile(r"\b(because|(?:due|owing)(?:\s+\w+){0,2}\s+to|(?:caused|driven|explained)(?:\s+\w+){0,2}\s+by|"
@@ -52,7 +52,7 @@ def check(proposal: ProposalPayload, result: ResultSet, join_checks: list[Determ
                                      detail="The query returned no rows." if result.row_count == 0 else f"{result.row_count:,} rows."))
     if result.truncated:
         checks.append(DeterministicCheck(name="complete_result", status="warning", detail="The result was truncated by the row limit."))
-    unsupported = _unsupported_numbers(proposal.draft_answer, result)
+    unsupported = unsupported_numbers(proposal.draft_answer, result)
     checks.append(DeterministicCheck(
         name="numbers_grounded", status="failed" if unsupported else "passed",
         detail=f"Not found in the result: {', '.join(unsupported[:5])}" if unsupported else "Every figure of 100 or more matches the result."))
@@ -99,4 +99,4 @@ def cap_words(text: str, limit: int) -> tuple[str, bool]:
 
 
 def table_answer(result: ResultSet, note: str) -> str:
-    return f"{note}\n\n{_table_markdown(result)}"
+    return f"{note}\n\n{table_markdown(result)}"

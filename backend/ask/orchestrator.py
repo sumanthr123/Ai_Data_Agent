@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import json
+import logging
 import random
 import threading
 import time
@@ -22,7 +23,7 @@ from typing import Any, Callable, Literal, Protocol, TypeVar
 from databricks.sdk import WorkspaceClient
 from pydantic import BaseModel, ValidationError
 
-from backend.ask import code_check, grounding, joins, knowledge, profiling, prompts, sql_guard
+from backend.ask import code_check, logs, grounding, joins, knowledge, profiling, prompts, sql_guard
 from backend.ask.budget import Budget, BudgetExhausted
 from backend.ask.cache import ResultCache, normalize_sql
 from backend.ask.contracts import (
@@ -38,9 +39,10 @@ from backend.ask.warehouse import Execution, QueryError, execute
 from backend.schemas import ColumnNode
 from backend.services import web_search
 from backend.services.compare import compare_pair
-from backend.services.databricks_engine import _json_block, _plain_error, clean_citations
+from backend.ask.text import clean_citations, json_block, plain_error
 from backend.services.sql_safety import UnsafeSqlError
 
+logger = logging.getLogger("ask")
 AGREE = {"match", "missing_fields", "scale"}
 Role = Literal["analyst", "reviewer", "adjudicator", "council"]
 T = TypeVar("T", bound=BaseModel)
@@ -114,6 +116,20 @@ class Orchestrator:
 
     async def run(self, req: AskRequest) -> AskResponse:
         started = time.monotonic()
+        rid = uuid.uuid4().hex[:12]
+        token = logs.REQUEST_ID.set(rid)
+        try:
+            response = await self._traced(req, started)
+            response.request_id = rid
+            v = response.verification
+            logger.info("ask %s", json.dumps({"kind": response.kind, "status": response.status, "reviewed": v.reviewed, "tokens": v.total_tokens,
+                                              "calls": v.total_model_calls, "sql": v.sql_attempts, "ms": response.total_ms,
+                                              "council": response.council.agreement if response.council else None}))
+            return response
+        finally:
+            logs.REQUEST_ID.reset(token)
+
+    async def _traced(self, req: AskRequest, started: float) -> AskResponse:
         state = req.state.model_copy(deep=True)
         with self.tracer.span("ask", "AGENT", {"question": req.question, "datasets": req.datasets}) as root:
             try:
@@ -142,7 +158,7 @@ class Orchestrator:
         try:
             tables = await asyncio.to_thread(self.data.describe, datasets)
         except Exception as exc:
-            self._event("context", "failed", mark, _plain_error(exc))
+            self._event("context", "failed", mark, plain_error(exc))
             return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)))
         self.versions = {t.full_name.lower(): t.updated_at or "" for t in tables}
         self.meta = {t.full_name.lower(): t.columns for t in tables}
@@ -266,7 +282,7 @@ class Orchestrator:
                                                                    record.date_column), 30)
                 self.registry.set_shared_profile(name, table.updated_at or "", profile)
             except Exception as exc:  # a missing profile never blocks an answer
-                self._event("context", "skipped", time.monotonic(), f"profile of {name} unavailable: {_plain_error(exc)[:120]}")
+                self._event("context", "skipped", time.monotonic(), f"profile of {name} unavailable: {plain_error(exc)[:120]}")
         context: dict[str, Any] = {"name": table.full_name, "columns": ", ".join(f"{c.name} {c.type}" for c in table.columns)}
         if record:
             context |= {k: v for k, v in (("description", record.description), ("grain", record.grain)) if v}
@@ -315,8 +331,8 @@ class Orchestrator:
                 self._event("execute", "failed", mark, str(exc)[:300])
                 raise
             except Exception as exc:
-                self._event("execute", "failed", mark, _plain_error(exc))
-                raise QueryError(_plain_error(exc)) from exc
+                self._event("execute", "failed", mark, plain_error(exc))
+                raise QueryError(plain_error(exc)) from exc
             span.set_outputs({"rows": run.result.row_count, "truncated": run.result.truncated, "cached": run.from_cache})
         self._event("execute", "succeeded", mark, f"{run.result.row_count:,} rows" + (" (cached)" if run.from_cache else ""))
         self.executed_sql = guarded.sql
@@ -374,7 +390,7 @@ class Orchestrator:
             (CouncilCandidate(label="", endpoint=e, status="executed", sql=sql, row_count=run.result.row_count), run, a) for e, sql, run, a in seeds]
         for endpoint, plan in zip(drafters, plans):
             if isinstance(plan, BaseException):
-                note = "unavailable" if isinstance(plan, ModelUnavailable) else "skipped: budget" if isinstance(plan, BudgetExhausted) else _plain_error(plan)
+                note = "unavailable" if isinstance(plan, ModelUnavailable) else "skipped: budget" if isinstance(plan, BudgetExhausted) else plain_error(plan)
                 candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="failed", note=str(note)[:200]), None, []))
             elif plan.status != "READY" or not plan.sql:
                 candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="abstained", note=plan.status), None, []))
@@ -383,7 +399,7 @@ class Orchestrator:
                     guarded, run = await self._run_sql(plan.sql, allowed)
                     candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="executed", sql=guarded.sql, row_count=run.result.row_count), run, plan.assumptions))
                 except (UnsafeSqlError, QueryError, BudgetExhausted) as exc:
-                    candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="failed", sql=plan.sql, note=_plain_error(exc)[:200]), None, []))
+                    candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="failed", sql=plan.sql, note=plain_error(exc)[:200]), None, []))
 
         ran = [(c, run, a) for c, run, a in candidates if run is not None]
         groups: list[list[int]] = []  # indexes into ran whose values match
@@ -468,8 +484,8 @@ class Orchestrator:
                 self._record(ModelCall(role=role, purpose=purpose, endpoint=endpoint, status="timed_out", latency_ms=self.cfg.model_timeout_s * 1000))
                 raise ModelUnavailable(f"{endpoint} timed out after {self.cfg.model_timeout_s}s") from None
             except Exception as exc:
-                self._record(ModelCall(role=role, purpose=purpose, endpoint=endpoint, status="failed", error=_plain_error(exc)))
-                raise ModelUnavailable(f"{endpoint}: {_plain_error(exc)}") from exc
+                self._record(ModelCall(role=role, purpose=purpose, endpoint=endpoint, status="failed", error=plain_error(exc)))
+                raise ModelUnavailable(f"{endpoint}: {plain_error(exc)}") from exc
             self.budget.spend(result.total_tokens)
             price = self.cfg.prices.get(endpoint)
             call = ModelCall(role=role, purpose=purpose, endpoint=endpoint, status="ok", latency_ms=result.latency_ms,
@@ -478,7 +494,7 @@ class Orchestrator:
             span.set_attributes({"prompt_tokens": call.prompt_tokens, "completion_tokens": call.completion_tokens,
                                  "reasoning_tokens": call.reasoning_tokens, "latency_ms": call.latency_ms})
             try:
-                parsed = contract.model_validate(_json_block(result.text))
+                parsed = contract.model_validate(json_block(result.text))
             except (ValueError, ValidationError) as exc:
                 call.status, call.error = "failed", f"Reply didn't match the {contract.__name__} contract"
                 self._record(call)
@@ -568,8 +584,8 @@ class Orchestrator:
         try:
             found = await asyncio.to_thread(self.search, query)
         except Exception as exc:
-            self._event("web_search", "failed", mark, _plain_error(exc))
-            return self._finish("ERROR", state, kind="web", answer=f"Live search didn't work, so I won't guess: {_plain_error(exc)}")
+            self._event("web_search", "failed", mark, plain_error(exc))
+            return self._finish("ERROR", state, kind="web", answer=f"Live search didn't work, so I won't guess: {plain_error(exc)}")
         answer, truncated = grounding.cap_words(found["summary"], self.cfg.max_answer_words)
         answer, uncited = clean_citations(answer, len(found["sources"]))
         self.verification.checks = [DeterministicCheck(

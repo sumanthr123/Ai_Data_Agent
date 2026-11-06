@@ -1,12 +1,11 @@
 # AI Data Assistant (Databricks App)
 
-Business users ask questions about Unity Catalog tables and their own CSV/XLSX uploads. Every number comes from an
-executed Databricks SQL query. An Analyst model writes the SQL and the answer, and an independent Reviewer from a
-different model family can veto it. Deterministic checks (grounded numbers, no causes stated as fact, join fan-out,
-read-only SQL) veto too. An Adjudicator settles disputes that remain after one correction.
-
-- `/`: the assistant (datasets and uploads · conversation with streamed steps · evidence drawer)
-- `/council`: the classic multi-model chat (council answers, live web search)
+Business users ask questions about Unity Catalog tables, their own CSV/XLSX uploads, this project's docs, code, or
+current events. Every data figure comes from an executed, read-only Databricks SQL query. An Analyst model plans and
+writes the answer; an independent Reviewer from a different model family can veto it; deterministic checks (grounded
+numbers, no causes stated as fact, join fan-out, read-only SQL) veto too. Disputes, or a click on "Verify with council",
+go to a council: independent queries, compared by value, judged anonymously. Docs answers cite passages, web answers
+cite pages, and code is validated without being run.
 
 Design: [ARCHITECTURE.md](ARCHITECTURE.md) · Permissions: [docs/UC_PERMISSIONS.md](docs/UC_PERMISSIONS.md) ·
 Evaluation: [evals/REPORT.md](evals/REPORT.md) · Contributor notes: [CLAUDE.md](CLAUDE.md)
@@ -24,6 +23,8 @@ Locally, queries run as your CLI identity. The app's registry table belongs to t
 unless you point `UC_UPLOAD_SCHEMA` at a schema you own.
 
 ## Test
+
+`scripts/check.sh` runs everything below except the live evaluation; run it before every deploy.
 
 ```bash
 .venv/bin/python -m unittest discover -s backend/tests -t .                                  # backend: fake models and warehouse

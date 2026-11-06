@@ -157,6 +157,30 @@ class RouteTests(unittest.TestCase):
         self.assertEqual((r.code.validation, r.verification.correction_cycles), ("syntax_ok", 1))
 
 
+class ResilienceTests(unittest.TestCase):
+    def client(self, replies):
+        from backend.ask import models as m
+        c = m.ServingClient(None, backoff_s=0)
+        c._chat = unittest.mock.Mock(side_effect=replies)
+        return m, c
+
+    def test_transient_error_is_retried_once(self):
+        m, c = self.client([RuntimeError("429 rate limit"), ChatResult("{}", 1, 1, 0, 2, 1)])
+        with unittest.mock.patch.object(m, "BREAKER", m._Breaker()):
+            self.assertEqual(c.chat("e", "s", "u", 10).text, "{}")
+        self.assertEqual(c._chat.call_count, 2)
+
+    def test_permanent_error_is_not_retried_and_breaker_opens(self):
+        m, c = self.client([RuntimeError("no credit balance")] * 3)
+        with unittest.mock.patch.object(m, "BREAKER", m._Breaker(threshold=3)):
+            for _ in range(3):
+                with self.assertRaises(RuntimeError):
+                    c.chat("e", "s", "u", 10)
+            with self.assertRaises(m.CircuitOpen):
+                c.chat("e", "s", "u", 10)
+        self.assertEqual(c._chat.call_count, 3)
+
+
 class SqlGuardTests(unittest.TestCase):
     def test_allows_approved_select_and_ctes(self):
         g = sql_guard.guard(f"WITH t AS (SELECT * FROM {TABLE}) SELECT COUNT(*) FROM t", {TABLE})

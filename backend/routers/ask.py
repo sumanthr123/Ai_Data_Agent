@@ -28,7 +28,7 @@ from backend.ask.settings import ConfigError, ask_settings
 from backend.ask.tracing import Tracer
 from backend.ask.warehouse import Execution, QueryError, execute
 from backend.schemas import ColumnNode
-from backend.services.databricks_engine import _plain_error
+from backend.ask.text import plain_error
 from backend.services.sql_safety import UnsafeSqlError
 
 logger = logging.getLogger("ask.api")
@@ -161,7 +161,7 @@ async def ask_stream(body: AskRequest, request: Request) -> EventSourceResponse:
                 yield {"event": "error", "data": json.dumps({"message": f"The question took longer than {ask_settings.request_timeout_s}s and was stopped."})}
             except Exception as exc:
                 logger.exception("ask stream failed")
-                yield {"event": "error", "data": json.dumps({"message": f"Something went wrong: {_plain_error(exc)}"})}
+                yield {"event": "error", "data": json.dumps({"message": f"Something went wrong: {plain_error(exc)}"})}
         finally:
             cancelled.set()  # client went away or we finished: stop model calls and the warehouse statement
             task.cancel()
@@ -240,7 +240,7 @@ async def upload(request: Request, file: UploadFile, conversation_id: str = Form
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         logger.exception("Upload failed")
-        raise HTTPException(502, f"The upload couldn't be stored: {_plain_error(exc)}") from exc
+        raise HTTPException(502, f"The upload couldn't be stored: {plain_error(exc)}") from exc
 
 
 @router.delete("/ask/uploads/{dataset}")

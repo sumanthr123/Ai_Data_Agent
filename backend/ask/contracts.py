@@ -206,6 +206,7 @@ class CouncilInfo(BaseModel):
 
 
 class AskResponse(BaseModel):
+    request_id: str = ""
     kind: Literal["data", "web", "docs", "code", "chat"] = "data"
     status: Literal["ANSWERED", "NEEDS_CLARIFICATION", "INSUFFICIENT_SCHEMA", "UNRESOLVED", "BUDGET_EXHAUSTED", "ERROR"]
     answer: str = ""

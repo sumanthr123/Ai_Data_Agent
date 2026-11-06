@@ -35,17 +35,3 @@ def validate(sql: str) -> str:
         if isinstance(node, _WRITES):
             raise UnsafeSqlError(f"Write clause {type(node).__name__.upper()} is not allowed.")
     return text
-
-
-def referenced_tables(sql: str) -> list[str]:
-    try:
-        tree = sqlglot.parse_one(sql, read="databricks")
-    except sqlglot.errors.ParseError:
-        return []
-    names = []
-    for table in tree.find_all(exp.Table):
-        parts = [p for p in (table.catalog, table.db, table.name) if p]
-        name = ".".join(parts)
-        if name and name not in names:
-            names.append(name)
-    return names

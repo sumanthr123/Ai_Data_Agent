@@ -1,23 +1,26 @@
-"""Databricks-native Multi-Model Consensus AI Data Agent: FastAPI API + compiled React UI."""
+"""AI Data Assistant: the governed /api/ask API (FastAPI) plus the compiled React UI."""
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.routers import ask, catalog, consensus
+from backend.ask import logs
+from backend.routers import ask
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logs.setup()
 
 
-app = FastAPI(title="Consensus AI Data Agent", docs_url="/api/docs", openapi_url="/api/openapi.json")
-app.include_router(consensus.router)
+app = FastAPI(title="AI Data Assistant", docs_url="/api/docs", openapi_url="/api/openapi.json")
 app.include_router(ask.router)
-app.include_router(catalog.router)
+
+
+@app.get("/api/health", include_in_schema=False)
+def health() -> dict[str, str]:
+    return {"status": "ok"}
 
 DIST = Path(__file__).parent / "frontend" / "dist"
 if (DIST / "assets").exists():

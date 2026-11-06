@@ -1,5 +1,5 @@
 import { AlertTriangle, ArrowUp, CircleCheck, FileSearch, Globe, Menu, PanelRight, RotateCcw, ShieldAlert, Square, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Markdown } from '../components/Markdown'
 import { SourceList } from '../components/SourceList'
 import { cn } from '../lib/cn'
@@ -7,11 +7,12 @@ import { listDatasets } from './api'
 import { DatasetPanel } from './DatasetPanel'
 import { EvidenceDrawer } from './EvidenceDrawer'
 import { humanize, isMeasure, isTimeLike } from './format'
-import { ResultChart } from './ResultChart'
 import { ResultTable } from './ResultTable'
 import { StatusSteps } from './StatusSteps'
 import { CodeAnswer, CouncilView, DocSources, KindBadge } from './AnswerParts'
 import type { AskResponse, Dataset, Turn } from './types'
+
+const ResultChart = lazy(() => import('./ResultChart').then((m) => ({ default: m.ResultChart })))  // recharts loads with the first chart
 import { useAssistant } from './useAssistant'
 
 /** Starter questions derived from the selected datasets' real columns and profiles, never hard-coded. */
@@ -98,7 +99,7 @@ function TurnView({ turn, live, onEvidence, onRetry, onCouncil }: { turn: Turn; 
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-zinc-300">{r.hypotheses.map((h) => <li key={h}>{h}</li>)}</ul>
               </details>
             )}
-            {r.result && r.result.row_count > 0 && r.status === 'ANSWERED' && <ResultChart result={r.result} />}
+            {r.result && r.result.row_count > 0 && r.status === 'ANSWERED' && <Suspense fallback={null}><ResultChart result={r.result} /></Suspense>}
             {r.result && r.result.row_count > 0 && <ResultTable result={r.result} />}
             {r.result && r.result.row_count === 0 && <p className="text-[13px] text-zinc-400">The query returned no rows.</p>}
           </>

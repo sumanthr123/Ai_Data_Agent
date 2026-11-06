@@ -110,7 +110,7 @@ Live (2026-11-05): superstore profiled at 9,994 rows (2014-01-03 to 2017-12-30),
 repeat an (order_id, product_id) pair. An uploaded targets CSV joined to superstore was checked as 1:N, then answered
 and reviewed. Leading-zero codes were kept, one malformed line was reported, and another user got "no access".
 
-## Phase 3: the interface (`frontend/src/assistant/`, served at `/`; the classic council chat is at `/council`)
+## Phase 3: the interface (`frontend/src/assistant/`, served at every path)
 
 - **Left:** dataset selector (shared tables and your uploads, with row counts and freshness or expiry), a drag-and-drop
   or file-picker upload with a sheet picker for workbooks and a summary of every type coercion and rejected row, the
@@ -183,3 +183,12 @@ percent vs fraction agree). The judge is the first of `ADJUDICATOR_MODEL_ENDPOIN
 didn't author the leading result. It sees the candidates anonymised and shuffled, and its answer must pass the same
 grounding checks. `reviewed` is true only when another model's independent query reproduced the chosen values.
 Known limit: with Claude unavailable there are two families, so the judge is also a candidate author (anonymity only).
+
+## Cleanup (2026-11-06)
+
+The classic council chat (`databricks_engine.py`, its mock stream, availability probe, validation, file attachments,
+`/api/chat/*`, `/api/catalog`, `/api/config`, `/api/feedback` and its React UI) was retired: the assistant's Tier 2
+council replaced it, with one set of checks and one UI. About 3,000 lines and four dependencies (pypdf, gunicorn,
+framer-motion, @tanstack/react-table) went with it. Shared pieces stayed: `sql_safety.py`, `web_search.py`,
+`compare.compare_pair`, `analysis.shape`. Model calls retry once on transient errors and a per-endpoint breaker fails
+fast after three failures in a row; logs carry the request ID.
