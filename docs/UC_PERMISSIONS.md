@@ -29,12 +29,11 @@ SHOW GRANTS `e572c2cb-a6ae-4943-9419-68439ce6dda5` ON SCHEMA ai_data_agent.user_
 SHOW GRANTS `e572c2cb-a6ae-4943-9419-68439ce6dda5` ON TABLE ai_data_agent.orders.superstore;
 ```
 
-### Recommended cleanup (least privilege; not applied, needs your approval)
+### Removed 2026-11-05 (least privilege)
 
-The app still lists endpoints it no longer calls, from before Meta and Alibaba models were removed. Removing them
-from the app's resources changes access, so it hasn't been done:
-
-- `llama-3-3-70b`, `llama-4-maverick`, `qwen35-122b`
+`llama-3-3-70b`, `llama-4-maverick` and `qwen35-122b` were removed from the app's resources; the app no longer calls
+them. Changing an app's resources stops it and clears its deployment: run `databricks apps start` and
+`databricks apps deploy` (same source path) afterwards.
 
 ## 2. Users of the app
 
