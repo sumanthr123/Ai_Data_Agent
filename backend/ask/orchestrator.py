@@ -200,6 +200,8 @@ class Orchestrator:
             self._event("clarify", "succeeded", mark)
             state.pending_clarification, state.last_question = plan.clarifying_question, question
             return self._finish("NEEDS_CLARIFICATION", state, clarifying_question=plan.clarifying_question, assumptions=plan.assumptions)
+        if plan.status == "CHAT" and len(knowledge.search(question)) >= 2:  # matches several doc sections: a docs question, not chat
+            plan.status, plan.search_query = "DOCS", question
         if plan.status == "CHAT":
             self._event("generate_sql", "skipped", mark, "conversational")
             return self._finish("ANSWERED", state, kind="chat", answer=(plan.reply or "I answer questions about your data, this project and code.").strip())
@@ -552,7 +554,7 @@ class Orchestrator:
         reply = await self._call("analyst", "docs", prompts.DOCS_ANSWER.replace("{words}", str(self.cfg.max_answer_words)),
                                  self._user({"passages": numbered}, question), DocsAnswer, self.cfg.analyst_max_out)
         answer, truncated = grounding.cap_words(reply.answer, self.cfg.max_answer_words)
-        self.verification.checks = grounding.docs_check(answer, [p.text for p in passages])
+        self.verification.checks = grounding.docs_check(answer, [p.text for p in passages], reply.cited)
         if any(c.status == "failed" for c in self.verification.checks):
             self._event("draft", "failed", mark, "answer not supported by the cited passages")
             return self._finish("UNRESOLVED", state, kind="docs", doc_sources=sources,

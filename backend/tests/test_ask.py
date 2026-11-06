@@ -138,6 +138,17 @@ class RouteTests(unittest.TestCase):
         checks = grounding.docs_check("Two tables are granted [1, 2].", ["Two tables", "granted"])
         self.assertEqual([c.status for c in checks], ["passed", "passed"])
 
+    def test_docs_check_uses_the_cited_list_when_sentences_have_no_markers(self):
+        self.assertEqual([c.status for c in grounding.docs_check("Uploads expire after 24 hours.", ["TTL (24)"], [1])], ["passed", "passed"])
+        self.assertEqual(grounding.docs_check("Uploads expire after 48 hours.", ["TTL (24)"], [1])[1].status, "failed")
+
+    def test_chat_that_matches_the_docs_is_answered_from_the_docs(self):
+        good = {"answer": "Uploads expire after 24 hours [1].", "cited": [1]}
+        hits = [knowledge.Passage("d#1", "d", "H", "expire after (24) hours"), knowledge.Passage("d#2", "d", "H2", "dropped hourly")]
+        with unittest.mock.patch("backend.ask.knowledge.search", return_value=hits):
+            r, _, _ = run({CFG.analyst: [{"status": "CHAT", "reply": "Hi!"}, good]}, question="How long are uploads kept?")
+        self.assertEqual((r.kind, r.status), ("docs", "ANSWERED"))
+
     def test_code_sql_is_planned_with_explain_not_run(self):
         code = {"answer": "Totals by region.", "language": "sql", "code": SQL}
         r, _, data = run({CFG.analyst: [{"status": "CODE"}, code]}, question="Write SQL for sales by region")

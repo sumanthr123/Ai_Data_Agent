@@ -72,15 +72,16 @@ def check(proposal: ProposalPayload, result: ResultSet, join_checks: list[Determ
 _MARKER = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")  # [2] or [1, 3]
 
 
-def docs_check(answer: str, passages: list[str]) -> list[DeterministicCheck]:
-    """Docs answers: [n] markers must point at a given passage, and every figure must appear in the passages it cites."""
+def docs_check(answer: str, passages: list[str], cited: list[int] | None = None) -> list[DeterministicCheck]:
+    """Docs answers: [n] markers must point at a given passage, and every figure must appear in the passages it cites
+    (a sentence without markers is checked against the reply's `cited` list)."""
     def cites(text: str) -> list[int]:
         return [int(n) for m in _MARKER.findall(text) for n in m.split(",")]
-    bad = sorted({n for n in cites(answer) if not 1 <= n <= len(passages)})
+    bad = sorted({n for n in cites(answer) + list(cited or []) if not 1 <= n <= len(passages)})
     loose = []
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", answer):
-        cited = " ".join(passages[n - 1] for n in cites(sentence) if 1 <= n <= len(passages)).replace(",", "")
-        loose += [f for f in re.findall(r"\d[\d,]*(?:\.\d+)?", _MARKER.sub("", sentence)) if f.replace(",", "").rstrip(",") not in cited]
+        ref = " ".join(passages[n - 1] for n in (cites(sentence) or cited or []) if 1 <= n <= len(passages)).replace(",", "")
+        loose += [f for f in re.findall(r"\d[\d,]*(?:\.\d+)?", _MARKER.sub("", sentence)) if f.replace(",", "").rstrip(",") not in ref]
     return [DeterministicCheck(name="citations_valid", status="failed" if bad else "passed", detail=f"Unknown passage(s): {bad}" if bad else ""),
             DeterministicCheck(name="figures_in_cited_passages", status="failed" if loose else "passed",
                                detail=f"Not in the cited passages: {', '.join(loose[:5])}" if loose else "")]
