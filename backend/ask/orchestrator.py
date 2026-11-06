@@ -14,6 +14,7 @@ import datetime as dt
 import json
 import logging
 import random
+import re
 import threading
 import time
 import uuid
@@ -85,6 +86,17 @@ class DatabricksData:
         return execute(self.w, sql, warehouse_id=self.cfg.warehouse_id, timeout_s=self.cfg.statement_timeout_s,
                        row_limit=self.cfg.max_rows_to_ui, byte_limit=self.cfg.statement_byte_limit, cancelled=self.cancelled.is_set,
                        on_pending=self.on_pending, start_grace_s=self.cfg.warehouse_start_grace_s)
+
+
+_CHANGE = re.compile(r"\b(drop|dropped|fall|fell|decline|declined|decrease|decreased|dip|dipped|rise|rose|increase|increased|grow|grew|growth|jump|jumped|spike|spiked)\b", re.I)
+_COMPARISON = re.compile(r"\b(previous|prior|same month|last year|preceding|compar\w*|reference period|baseline)\b", re.I)
+_METRIC = re.compile(r"\b(metric|measure)s?\b", re.I)
+
+
+def _asks_only_for_comparison(question: str, clarifying: str | None) -> bool:
+    """A rise or drop with no comparison named: the planner asks "compared with what?" though the previous period is the
+    usual reading. Not when it also asks which metric, which is a real ambiguity."""
+    return bool(clarifying and _CHANGE.search(question) and _COMPARISON.search(clarifying) and not _METRIC.search(clarifying))
 
 
 def _data(kind: str, text: str) -> str:
@@ -202,6 +214,12 @@ class Orchestrator:
         mark = time.monotonic()
         plan = await self._call("analyst", "plan", prompts.ANALYST_PLAN, self._user(context, question), AnalystPlan, cfg.analyst_max_out)
         self.verification.analyst = "OK"
+        if plan.status == "CLARIFY" and _asks_only_for_comparison(question, plan.clarifying_question):
+            # Prompt wording didn't stop GPT-OSS asking this; default to the previous period and say so.
+            context = {**context, "comparison": "the previous period of the same length (the user named none)"}
+            plan = await self._call("analyst", "plan", prompts.ANALYST_PLAN, self._user(context, question), AnalystPlan, cfg.analyst_max_out)
+            if plan.status == "READY":
+                plan.assumptions = [*plan.assumptions, "Compared with the previous period, since no comparison was named."]
         if plan.status == "CLARIFY" and plan.clarifying_question:
             self._event("clarify", "succeeded", mark)
             state.pending_clarification, state.last_question = plan.clarifying_question, question

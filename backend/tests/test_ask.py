@@ -272,6 +272,18 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(context["tables"][0]["grain"], "one row per order line (order_id, product_id)")
         self.assertEqual(context["tables"][0]["profile"]["rows"], 9994)
 
+    def test_drop_without_comparison_defaults_to_previous_period(self):
+        ask = {"status": "CLARIFY", "clarifying_question": "Compare with the prior month or the same month last year?"}
+        r, models, _ = run({CFG.analyst: [ask, PLAN, GOOD], CFG.reviewer: [APPROVED]}, question="Why did sales drop in February 2017?")
+        self.assertEqual(r.status, "ANSWERED")
+        self.assertIn("Compared with the previous period, since no comparison was named.", r.assumptions)
+        self.assertIn('"comparison"', models.seen[1][1])
+
+    def test_metric_ambiguity_still_clarifies(self):
+        ask = {"status": "CLARIFY", "clarifying_question": "Which metric, and compared with which period?"}
+        r, models, _ = run({CFG.analyst: [ask]}, question="Why did performance drop?")
+        self.assertEqual((r.status, len(models.seen)), ("NEEDS_CLARIFICATION", 1))
+
     def test_single_model_baseline_skips_review(self):
         bad = {**GOOD, "draft_answer": "West led with $999,999.00."}
         r, models, _ = run({CFG.analyst: [PLAN, bad]}, cfg=dataclasses.replace(CFG, review_mode="single"))
