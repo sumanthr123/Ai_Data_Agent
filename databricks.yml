@@ -19,21 +19,9 @@ resources:
           sql_warehouse:
             id: ${var.warehouse_id}
             permission: CAN_USE
-        - name: llama-3-3-70b
-          serving_endpoint:
-            name: databricks-meta-llama-3-3-70b-instruct
-            permission: CAN_QUERY
         - name: gpt-oss-120b
           serving_endpoint:
             name: databricks-gpt-oss-120b
-            permission: CAN_QUERY
-        - name: qwen35-122b
-          serving_endpoint:
-            name: databricks-qwen35-122b-a10b
-            permission: CAN_QUERY
-        - name: llama-4-maverick
-          serving_endpoint:
-            name: databricks-llama-4-maverick
             permission: CAN_QUERY
         - name: gemini-3-5-flash
           serving_endpoint:
