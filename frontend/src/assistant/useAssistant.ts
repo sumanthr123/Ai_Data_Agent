@@ -66,19 +66,23 @@ export function useAssistant(defaultDatasets: string[]) {
     update(activeId, (c) => ({ ...c, datasets, state: c.state ? { ...c.state, active_datasets: datasets, applied_filters: [], last_sql: null } : null }))
   }, [activeId, start, update])
 
-  const ask = useCallback(async (question: string, council = false) => {
+  /** `datasets`: what's selected and still available; an expired upload in the saved list would fail the question. */
+  const ask = useCallback(async (question: string, council = false, datasets?: string[]) => {
     if (busy || !question.trim()) return
-    const conversation = active ?? start()
-    const turn: Turn = { id: newId(), question: question.trim(), stages: [], datasets: conversation.datasets }
+    const conversation = active ?? start(datasets)
+    const use = datasets ?? conversation.datasets
+    const changed = use.join() !== conversation.datasets.join()
+    const state = changed && conversation.state ? { ...conversation.state, active_datasets: use, applied_filters: [], last_sql: null } : conversation.state
+    const turn: Turn = { id: newId(), question: question.trim(), stages: [], datasets: use }
     update(conversation.id, (c) => ({
-      ...c, updatedAt: Date.now(), turns: [...c.turns, turn],
+      ...c, datasets: use, state, updatedAt: Date.now(), turns: [...c.turns, turn],
       title: c.turns.length ? c.title : question.trim().slice(0, 60),
     }))
     const abort = new AbortController()
     controller.current = abort
     setBusy(true)
     try {
-      const response = await streamAsk(turn.question, conversation.datasets, conversation.state,
+      const response = await streamAsk(turn.question, use, state,
         (event) => updateTurn(conversation.id, turn.id, (t) => ({ ...t, stages: mergeStage(t.stages, event) })), abort.signal, council)
       updateTurn(conversation.id, turn.id, (t) => ({ ...t, response }))
       update(conversation.id, (c) => ({ ...c, state: response.state }))

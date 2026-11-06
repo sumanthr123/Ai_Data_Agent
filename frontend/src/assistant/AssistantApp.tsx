@@ -153,6 +153,7 @@ export default function AssistantApp() {
 
   const visible = new Set(datasets.map((d) => d.dataset))
   const selected = (a.active?.datasets ?? defaults).filter((d) => visible.has(d))
+  const usable = selected.length ? selected : defaults.length ? defaults : undefined  // undefined until the list loads
   const turns = a.active?.turns ?? []
   const evidenceTurn = turns.find((t) => t.id === evidenceId) ?? [...turns].reverse().find((t) => t.response) ?? null
 
@@ -160,19 +161,18 @@ export default function AssistantApp() {
 
   const submit = (text = draft) => {
     if (!text.trim() || a.busy) return
-    if (!selected.length && defaults.length) a.setDatasets(defaults)
-    a.ask(text)
+    a.ask(text, false, usable)
     setDraft('')
   }
   // Stable across renders so memoized turns don't re-render; reads the latest submit/ask through the ref.
-  const latest = useRef({ submit, ask: a.ask })
-  latest.current = { submit, ask: a.ask }
+  const latest = useRef({ submit, ask: a.ask, usable })
+  latest.current = { submit, ask: a.ask, usable }
   const onTurnAction = useCallback((turn: Turn, action: TurnAction) => {
     if (action === 'evidence') {
       setEvidenceId(turn.id)
       setDrawerOpen(true)
     } else if (action === 'retry') latest.current.submit(turn.question)
-    else latest.current.ask(turn.question, true)
+    else latest.current.ask(turn.question, true, latest.current.usable)
   }, [])
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
