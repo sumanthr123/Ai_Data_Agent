@@ -22,11 +22,11 @@ from typing import Any, Callable, Literal, Protocol, TypeVar
 from databricks.sdk import WorkspaceClient
 from pydantic import BaseModel, ValidationError
 
-from backend.ask import grounding, joins, profiling, prompts, sql_guard
+from backend.ask import code_check, grounding, joins, knowledge, profiling, prompts, sql_guard
 from backend.ask.budget import Budget, BudgetExhausted
 from backend.ask.cache import ResultCache, normalize_sql
 from backend.ask.contracts import (
-    AnalystDraft, AnalystPlan, AskRequest, AskResponse, AuthContext, ConversationState,
+    AnalystDraft, AnalystPlan, CodeAnswer, DocsAnswer, DocSource, AskRequest, AskResponse, AuthContext, ConversationState,
     CouncilCandidate, CouncilInfo, DeterministicCheck, Issue, JudgeVerdict, ModelCall, ProposalPayload, ResultPreview, ReviewPayload, SourceInfo, StageEvent,
     Verification, WebSource,
 )
@@ -172,6 +172,15 @@ class Orchestrator:
             self._event("clarify", "succeeded", mark)
             state.pending_clarification, state.last_question = plan.clarifying_question, question
             return self._finish("NEEDS_CLARIFICATION", state, clarifying_question=plan.clarifying_question, assumptions=plan.assumptions)
+        if plan.status == "CHAT":
+            self._event("generate_sql", "skipped", mark, "conversational")
+            return self._finish("ANSWERED", state, kind="chat", answer=(plan.reply or "I answer questions about your data, this project and code.").strip())
+        if plan.status == "DOCS":
+            self._event("generate_sql", "skipped", mark, "project knowledge")
+            return await self._docs(state, question, plan.search_query or question)
+        if plan.status == "CODE":
+            self._event("generate_sql", "skipped", mark, "code question")
+            return await self._code(context, state, question, set(datasets))
         if plan.status == "WEB" and plan.search_query:
             self._event("generate_sql", "skipped", mark, "needs live information")
             return await self._web(state, question, plan.search_query)
@@ -499,6 +508,58 @@ class Orchestrator:
         return self._finish("ANSWERED", state, question=question, answer=answer, answer_truncated=truncated,
                             hypotheses=self.proposal.hypotheses if self.proposal else [])
 
+    async def _docs(self, state: ConversationState, question: str, query: str) -> AskResponse:
+        """Project knowledge: retrieve once, answer only from the numbered passages, check every citation and figure."""
+        self._running("retrieve")
+        mark = time.monotonic()
+        self.sources = []
+        passages = knowledge.search(query) or knowledge.search(question)
+        sources = [DocSource(n=i + 1, file=p.file, section=p.section, excerpt=p.text[:300]) for i, p in enumerate(passages)]
+        self._event("retrieve", "succeeded", mark, f"{len(passages)} passage(s)")
+        if not passages:
+            return self._finish("INSUFFICIENT_SCHEMA", state, kind="docs", answer="The project docs don't cover this.")
+        self._running("draft")
+        mark = time.monotonic()
+        numbered = [{"n": i + 1, "source": f"{p.file}: {p.section}", "text": p.text} for i, p in enumerate(passages)]
+        reply = await self._call("analyst", "docs", prompts.DOCS_ANSWER.replace("{words}", str(self.cfg.max_answer_words)),
+                                 self._user({"passages": numbered}, question), DocsAnswer, self.cfg.analyst_max_out)
+        answer, truncated = grounding.cap_words(reply.answer, self.cfg.max_answer_words)
+        self.verification.checks = grounding.docs_check(answer, [p.text for p in passages])
+        if any(c.status == "failed" for c in self.verification.checks):
+            self._event("draft", "failed", mark, "answer not supported by the cited passages")
+            return self._finish("UNRESOLVED", state, kind="docs", doc_sources=sources,
+                                answer="I couldn't write an answer fully supported by the project docs. The closest passages are listed below.")
+        self._event("draft", "succeeded", mark)
+        return self._finish("ANSWERED", state, question=question, kind="docs", answer=answer, answer_truncated=truncated, doc_sources=sources)
+
+    async def _code(self, context: dict[str, Any], state: ConversationState, question: str, allowed: set[str]) -> AskResponse:
+        """Code: generated once, validated statically (SQL planned with EXPLAIN, Python parsed), repaired at most once.
+        Nothing is executed; destructive operations are flagged and never run."""
+        self._running("draft")
+        mark = time.monotonic()
+        self.sources = []
+        prompt = prompts.CODE_ANSWER.replace("{words}", str(self.cfg.max_answer_words))
+
+        def explain(sql: str) -> object:
+            self.budget.reserve_sql()
+            return self.data.execute(sql)
+
+        reply = await self._call("analyst", "code", prompt, self._user(context, question), CodeAnswer, self.cfg.analyst_max_out)
+        info = await asyncio.to_thread(code_check.check, reply.language, reply.code, allowed, explain)
+        if info.validation == "failed":
+            self.verification.correction_cycles = 1
+            reply = await self._call("analyst", "code_fix", prompt, self._user({**context, "code": reply.code, "validation_error": info.detail}, question),
+                                     CodeAnswer, self.cfg.analyst_max_out)
+            info = await asyncio.to_thread(code_check.check, reply.language, reply.code, allowed, explain)
+        self.verification.checks = [DeterministicCheck(name="code_validation", detail=info.detail,
+                                                       status={"validated": "passed", "syntax_ok": "passed", "failed": "failed"}.get(info.validation, "warning"))]
+        if info.destructive:
+            self.verification.checks.append(DeterministicCheck(name="destructive_operations", status="warning",
+                                                               detail="Writes or deletes data or files: review it first; it is never run automatically."))
+        self._event("draft", "succeeded" if info.validation != "failed" else "failed", mark, info.validation)
+        answer, truncated = grounding.cap_words(reply.answer, self.cfg.max_answer_words)
+        return self._finish("ANSWERED", state, question=question, kind="code", answer=answer, answer_truncated=truncated, code=info)
+
     async def _web(self, state: ConversationState, question: str, query: str) -> AskResponse:
         """Live question: one grounded Google Search; the answer cites the pages it came from and is labelled as such."""
         self._running("web_search")
@@ -508,7 +569,7 @@ class Orchestrator:
             found = await asyncio.to_thread(self.search, query)
         except Exception as exc:
             self._event("web_search", "failed", mark, _plain_error(exc))
-            return self._finish("ERROR", state, answer=f"Live search didn't work, so I won't guess: {_plain_error(exc)}")
+            return self._finish("ERROR", state, kind="web", answer=f"Live search didn't work, so I won't guess: {_plain_error(exc)}")
         answer, truncated = grounding.cap_words(found["summary"], self.cfg.max_answer_words)
         answer, uncited = clean_citations(answer, len(found["sources"]))
         self.verification.checks = [DeterministicCheck(
@@ -517,7 +578,7 @@ class Orchestrator:
         self.verification.degraded_reasons.append(
             f"From a live web search ({found['retrieved_at']}), not from your data; only as reliable as the cited pages.")
         self._event("web_search", "succeeded", mark, f"{len(found['sources'])} source(s)")
-        return self._finish("ANSWERED", state, question=question, answer=answer, answer_truncated=truncated,
+        return self._finish("ANSWERED", state, question=question, kind="web", answer=answer, answer_truncated=truncated,
                             web_sources=[WebSource(**s) for s in found["sources"] if s.get("url")])
 
     def _unresolved(self, state: ConversationState, question: str, reason: str) -> AskResponse:

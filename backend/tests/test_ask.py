@@ -8,7 +8,7 @@ import json
 import unittest
 import unittest.mock
 
-from backend.ask import grounding, sql_guard
+from backend.ask import grounding, knowledge, sql_guard
 from backend.ask.cache import ResultCache
 from backend.ask.contracts import AskRequest, AuthContext, ConversationState
 from backend.ask.models import ChatResult, _usage
@@ -68,6 +68,8 @@ class FakeData:
             row = {"n": 9994, "nn_0": 9994, "nn_2": 9994, "mn_2": "2014-01-03", "mx_2": "2017-12-30", "nn_3": 9994, "dup_0": 0, "dup_1": 8}
             return Execution(analysis.shape(list(row), ["LONG"] * len(row), [row], False), "p", 5)
         self.executed.append(sql)
+        if sql.startswith("EXPLAIN ") and sql[8:] in ROWS:
+            return Execution(analysis.shape(["plan"], ["STRING"], [{"plan": "== Physical Plan =="}], False), "stmt-x", 3)
         if sql not in ROWS:
             raise QueryError("Warehouse: [UNRESOLVED_COLUMN] bad column")
         rows = ROWS[sql]
@@ -108,6 +110,51 @@ class LiveQuestionTests(unittest.TestCase):
         r, _, _ = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?", search=down)
         self.assertEqual(r.status, "ERROR")
         self.assertIn("won't guess", r.answer)
+
+
+class RouteTests(unittest.TestCase):
+    def test_chat_is_answered_by_the_plan_alone(self):
+        r, models, data = run({CFG.analyst: [{"status": "CHAT", "reply": "Hi! Ask me about your data."}]}, question="hello")
+        self.assertEqual((r.kind, r.status, r.answer), ("chat", "ANSWERED", "Hi! Ask me about your data."))
+        self.assertEqual((len(models.seen), data.executed), (1, []))
+
+    def test_docs_answer_cites_retrieved_passages(self):
+        plan = {"status": "DOCS", "search_query": "upload expiry TTL"}
+        good = {"answer": "Uploads expire after 24 hours [1].", "cited": [1]}
+        with unittest.mock.patch("backend.ask.knowledge.search", return_value=[knowledge.Passage("docs/x.md#1", "docs/x.md", "Hygiene", "expire after UPLOAD_TTL_HOURS (24)")]):
+            r, _, _ = run({CFG.analyst: [plan, good]}, question="When do uploads expire?")
+        self.assertEqual((r.kind, r.status), ("docs", "ANSWERED"))
+        self.assertEqual(r.doc_sources[0].file, "docs/x.md")
+
+    def test_docs_answer_with_unsupported_figure_is_not_shown(self):
+        plan = {"status": "DOCS", "search_query": "upload expiry"}
+        bad = {"answer": "Uploads expire after 48 hours [1].", "cited": [1]}
+        with unittest.mock.patch("backend.ask.knowledge.search", return_value=[knowledge.Passage("d#1", "d", "H", "expire after 24 hours")]):
+            r, _, _ = run({CFG.analyst: [plan, bad]}, question="When do uploads expire?")
+        self.assertEqual(r.status, "UNRESOLVED")
+        self.assertNotIn("48", r.answer)
+
+    def test_docs_check_accepts_combined_citations(self):
+        checks = grounding.docs_check("Two tables are granted [1, 2].", ["Two tables", "granted"])
+        self.assertEqual([c.status for c in checks], ["passed", "passed"])
+
+    def test_code_sql_is_planned_with_explain_not_run(self):
+        code = {"answer": "Totals by region.", "language": "sql", "code": SQL}
+        r, _, data = run({CFG.analyst: [{"status": "CODE"}, code]}, question="Write SQL for sales by region")
+        self.assertEqual((r.kind, r.code.validation, r.code.destructive), ("code", "validated", False))
+        self.assertTrue(data.executed[-1].startswith("EXPLAIN "))
+
+    def test_destructive_code_is_flagged_and_not_validated(self):
+        code = {"answer": "Deletes old rows.", "language": "sql", "code": f"DELETE FROM {TABLE} WHERE order_date < '2015-01-01'"}
+        r, _, data = run({CFG.analyst: [{"status": "CODE"}, code]}, question="Delete orders before 2015")
+        self.assertEqual((r.code.validation, r.code.destructive), ("not_run", True))
+        self.assertFalse(any(s.startswith(("EXPLAIN", "DELETE")) for s in data.executed))
+
+    def test_python_syntax_error_gets_one_repair(self):
+        broken = {"answer": "x", "language": "python", "code": "df = spark.table('t'\n"}
+        fixed = {"answer": "Reads the table.", "language": "python", "code": "df = spark.table('t')\n"}
+        r, _, _ = run({CFG.analyst: [{"status": "CODE"}, broken, fixed]}, question="Read a table in PySpark")
+        self.assertEqual((r.code.validation, r.verification.correction_cycles), ("syntax_ok", 1))
 
 
 class SqlGuardTests(unittest.TestCase):

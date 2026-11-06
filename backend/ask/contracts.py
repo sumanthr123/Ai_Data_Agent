@@ -13,9 +13,10 @@ CheckStatus = Literal["passed", "failed", "warning", "skipped"]
 # ---- model exchange ----------------------------------------------------------------------------------------------
 
 class AnalystPlan(BaseModel):
-    status: Literal["READY", "CLARIFY", "INSUFFICIENT_SCHEMA", "WEB"]
+    status: Literal["READY", "CLARIFY", "INSUFFICIENT_SCHEMA", "WEB", "DOCS", "CODE", "CHAT"]
     sql: str | None = None
     search_query: str | None = None
+    reply: str | None = None  # CHAT only
     assumptions: list[str] = []
     clarifying_question: str | None = None
     missing: str | None = None
@@ -46,6 +47,17 @@ class ReviewPayload(BaseModel):
     status: Literal["APPROVED", "REJECTED", "DEGRADED"]
     issues: list[Issue] = []
     required_sql_fix: str | None = None
+
+
+class DocsAnswer(BaseModel):
+    answer: str
+    cited: list[int] = []
+
+
+class CodeAnswer(BaseModel):
+    answer: str
+    language: Literal["sql", "python", "other"] = "other"
+    code: str = ""
 
 
 class JudgeVerdict(BaseModel):
@@ -142,7 +154,7 @@ class AuthContext(BaseModel):
 
 
 class StageEvent(BaseModel):
-    stage: Literal["context", "clarify", "generate_sql", "web_search", "execute", "draft", "review", "correct", "council", "adjudicate", "complete"]
+    stage: Literal["context", "clarify", "generate_sql", "web_search", "retrieve", "execute", "draft", "review", "correct", "council", "adjudicate", "complete"]
     status: Literal["running", "succeeded", "failed", "skipped"]
     ms: int = 0
     detail: str = ""
@@ -155,6 +167,22 @@ class WebSource(BaseModel):
     url: str
     published: str = ""
     retrieved_at: str = ""
+
+
+class DocSource(BaseModel):
+    n: int
+    file: str
+    section: str
+    excerpt: str
+
+
+class CodeInfo(BaseModel):
+    language: Literal["sql", "python", "other"]
+    code: str
+    # validated: EXPLAIN planned it on the warehouse; syntax_ok: parsed, not run; not_run: blocked by policy; failed: didn't parse/plan
+    validation: Literal["validated", "syntax_ok", "not_run", "failed", "untested"]
+    detail: str = ""
+    destructive: bool = False
 
 
 class CouncilCandidate(BaseModel):
@@ -178,6 +206,7 @@ class CouncilInfo(BaseModel):
 
 
 class AskResponse(BaseModel):
+    kind: Literal["data", "web", "docs", "code", "chat"] = "data"
     status: Literal["ANSWERED", "NEEDS_CLARIFICATION", "INSUFFICIENT_SCHEMA", "UNRESOLVED", "BUDGET_EXHAUSTED", "ERROR"]
     answer: str = ""
     answer_truncated: bool = False
@@ -191,6 +220,8 @@ class AskResponse(BaseModel):
     sources: list[SourceInfo] = []
     web_sources: list[WebSource] = []
     council: CouncilInfo | None = None
+    doc_sources: list[DocSource] = []
+    code: CodeInfo | None = None
     verification: Verification = Verification()
     auth: AuthContext
     state: ConversationState
