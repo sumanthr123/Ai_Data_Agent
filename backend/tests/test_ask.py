@@ -6,6 +6,7 @@ import asyncio
 import dataclasses
 import json
 import unittest
+import unittest.mock
 
 from backend.ask import grounding, sql_guard
 from backend.ask.cache import ResultCache
@@ -74,11 +75,11 @@ class FakeData:
 
 
 def run(script: dict[str, list], cfg: AskSettings = CFG, question: str = "Sales by region in 2017?", state: ConversationState | None = None,
-        cache: ResultCache | None = None, data: FakeData | None = None, search=None):
+        cache: ResultCache | None = None, data: FakeData | None = None, search=None, council: bool = False):
     models, data = FakeModels(script), data or FakeData()
     orch = Orchestrator(cfg, data, models, AuthContext(mode="service_principal"), "sp", cache or ResultCache(60), Tracer(""),
                         **({"search": search} if search else {}))
-    return asyncio.run(orch.run(AskRequest(question=question, state=state or ConversationState()))), models, data
+    return asyncio.run(orch.run(AskRequest(question=question, state=state or ConversationState(), council=council))), models, data
 
 
 WEB_PLAN = {"status": "WEB", "sql": None, "assumptions": [], "search_query": "weather in Seattle today"}
@@ -184,26 +185,48 @@ class OrchestratorTests(unittest.TestCase):
         self.assertEqual(r.verification.reviewer, "DEGRADED")
         self.assertTrue(r.verification.degraded_reasons)
 
-    def test_unresolved_when_adjudicator_unavailable(self):
-        r, _, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED], CFG.adjudicator: [RuntimeError("no credits")]})
+    def test_unresolved_when_judge_unavailable(self):
+        r, _, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED, PLAN], CFG.adjudicator: [RuntimeError("no credits")]})
         self.assertEqual(r.status, "UNRESOLVED")
         self.assertEqual(r.verification.adjudicator, "DEGRADED")
         self.assertFalse(r.verification.reviewed)
         self.assertIn("Wrong period", r.answer)
 
-    def test_adjudicator_answer_must_be_grounded(self):
-        made_up = {"decision": "RESOLVED", "rationale": "", "final_answer": "West had $123,456.00.", "corrective_sql": None}
-        r, _, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED], CFG.adjudicator: [made_up]})
+    def test_council_settles_a_dispute_on_reproduced_values(self):
+        verdict = {"choice": "A", "final_answer": GOOD["draft_answer"], "rationale": "Both queries agree.", "disagreement": None}
+        with unittest.mock.patch("random.shuffle"):
+            r, models, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED, PLAN], CFG.adjudicator: [verdict]})
+        self.assertEqual((r.status, r.council.trigger, r.council.agreement), ("ANSWERED", "dispute", "full"))
+        self.assertTrue(r.verification.reviewed)  # another family's independent query reproduced the values
+        self.assertEqual(r.council.judge, CFG.adjudicator)  # not the family that authored the leading result
+        judge_prompt = models.seen[-1][1]
+        self.assertNotIn("gemini", judge_prompt)  # candidates are anonymous to the judge
+        self.assertNotIn("gpt-oss", judge_prompt)
+
+    def test_council_conflict_is_shown_not_hidden(self):
+        verdict = {"choice": "B", "final_answer": "West had $725,457.82 across all years.", "rationale": "The question has no period.",
+                   "disagreement": "A filters to 2017; B covers all years."}
+        with unittest.mock.patch("random.shuffle"):
+            r, _, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED, {**PLAN, "sql": FIX}], CFG.adjudicator: [verdict]})
+        self.assertEqual((r.status, r.council.agreement, r.council.chosen), ("ANSWERED", "conflict", "B"))
+        self.assertFalse(r.verification.reviewed)  # nobody reproduced the chosen values
+        self.assertEqual(r.council.disagreement, "A filters to 2017; B covers all years.")
+        self.assertEqual(r.sql, FIX)
+
+    def test_judge_answer_must_be_grounded(self):
+        made_up = {"choice": "A", "final_answer": "West had $123,456.00.", "rationale": "", "disagreement": None}
+        with unittest.mock.patch("random.shuffle"):
+            r, _, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED, PLAN], CFG.adjudicator: [made_up]})
         self.assertEqual(r.status, "UNRESOLVED")
 
-    def test_adjudicator_corrective_query(self):
-        verdict = {"decision": "CORRECTIVE_QUERY", "rationale": "All years requested.", "final_answer": None, "corrective_sql": FIX}
-        r, _, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED], CFG.adjudicator: [verdict]})
-        self.assertEqual(r.status, "ANSWERED")
-        self.assertEqual(r.verification.adjudicator, "CORRECTIVE_QUERY")
-        self.assertIn("725,457.82", r.answer)
-        self.assertFalse(r.verification.reviewed)
-        self.assertLessEqual(r.verification.total_model_calls, CFG.max_model_calls)
+    def test_council_on_request_skips_tier_one_and_notes_unavailable_members(self):
+        verdict = {"choice": "A", "final_answer": GOOD["draft_answer"], "rationale": "", "disagreement": None}
+        with unittest.mock.patch("random.shuffle"):
+            r, models, _ = run({CFG.analyst: [PLAN], CFG.reviewer: [RuntimeError("down")], CFG.adjudicator: [verdict]}, council=True)
+        self.assertEqual((r.status, r.council.trigger, r.council.agreement), ("ANSWERED", "requested", "single"))
+        self.assertFalse(r.verification.reviewed)  # a single result is lower confidence
+        self.assertIn("unavailable", r.verification.degraded_reasons[0])
+        self.assertEqual([c.purpose for c in r.verification.calls if c.status == "ok"], ["plan", "judge"])
 
     def test_failed_sql_is_fixed_within_attempt_limit(self):
         broken = {**PLAN, "sql": f"SELECT regionn FROM {TABLE}"}

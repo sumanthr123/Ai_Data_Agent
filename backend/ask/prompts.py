@@ -39,8 +39,9 @@ If the SQL is wrong, give the corrected SQL in required_sql_fix.
 Shape: {"status":"APPROVED"|"REJECTED","issues":[{"severity":"high"|"medium"|"low","category":string,
 "description":string}],"required_sql_fix":string|null}"""
 
-ADJUDICATOR = """Role: Adjudicator. The Reviewer rejected the Analyst's answer after one correction. Decide using only
-the executed evidence. RESOLVED: give final_answer (markdown, at most {words} words, figures exactly from a result).
-CORRECTIVE_QUERY: give one read-only SQL that settles the dispute. UNRESOLVED: explain the uncertainty in rationale.
-Shape: {"decision":"RESOLVED"|"CORRECTIVE_QUERY"|"UNRESOLVED","rationale":string,"final_answer":string|null,
-"corrective_sql":string|null}"""
+JUDGE = """Role: Judge. Anonymous candidates answered the question with SQL, and each query was executed. Pick the
+candidate whose SQL and result correctly answer it: right tables, filters, period, grain and business definitions.
+Matching results are evidence, not proof; length and confidence are not quality. Write the final answer from the
+chosen result only (markdown, at most {words} words, figures exactly as in that result). If none is correct, set
+choice to null and say why. In disagreement, say in one sentence how the candidates differ, or null.
+Shape: {"choice":string|null,"final_answer":string|null,"rationale":string,"disagreement":string|null}"""

@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import datetime as dt
 import json
+import random
 import threading
 import time
 import uuid
@@ -25,21 +26,22 @@ from backend.ask import grounding, joins, profiling, prompts, sql_guard
 from backend.ask.budget import Budget, BudgetExhausted
 from backend.ask.cache import ResultCache, normalize_sql
 from backend.ask.contracts import (
-    AdjudicationPayload, AnalystDraft, AnalystPlan, AskRequest, AskResponse, AuthContext, ConversationState,
-    DeterministicCheck, Issue, ModelCall, ProposalPayload, ResultPreview, ReviewPayload, SourceInfo, StageEvent,
+    AnalystDraft, AnalystPlan, AskRequest, AskResponse, AuthContext, ConversationState,
+    CouncilCandidate, CouncilInfo, DeterministicCheck, Issue, JudgeVerdict, ModelCall, ProposalPayload, ResultPreview, ReviewPayload, SourceInfo, StageEvent,
     Verification, WebSource,
 )
 from backend.ask.models import ModelClient
 from backend.ask.registry import Registry
-from backend.ask.settings import AskSettings
+from backend.ask.settings import AskSettings, model_family
 from backend.ask.tracing import Tracer
 from backend.ask.warehouse import Execution, QueryError, execute
 from backend.schemas import ColumnNode
 from backend.services import web_search
+from backend.services.compare import compare_pair
 from backend.services.databricks_engine import _json_block, _plain_error, clean_citations
 from backend.services.sql_safety import UnsafeSqlError
 
-Role = Literal["analyst", "reviewer", "adjudicator"]
+Role = Literal["analyst", "reviewer", "adjudicator", "council"]
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -100,6 +102,7 @@ class Orchestrator:
         self.verification = Verification()
         self.events: list[StageEvent] = []
         self.sources: list[SourceInfo] = []
+        self.council: CouncilInfo | None = None
         self.versions: dict[str, str] = {}
         self.reviewer_down = False
         self.execution: Execution | None = None
@@ -189,12 +192,15 @@ class Orchestrator:
                     return self._finish("ERROR", state, answer=f"The query couldn't run: {exc}")
                 sql, assumptions = fix.sql, fix.assumptions or assumptions
 
+        if req.council:
+            return await self._council(context, question, state, set(datasets), [(cfg.analyst, guarded.sql, self.execution, assumptions)], "requested")
         self.proposal = await self._draft(context, question, guarded.sql, assumptions, [])
         checks = grounding.check(self.proposal, self.execution.result, self.join_checks)
         if self.cfg.review_mode == "single":  # baseline: checks are reported but nothing reviews or corrects the answer
             self.verification.checks = checks
             return self._answer(state, question, self.proposal.draft_answer)
         earlier: tuple[ProposalPayload, Execution] | None = None
+        author = cfg.analyst
         if any(c.status == "failed" for c in checks):  # the correction cycle, before review: the Reviewer then runs once
             self._running("correct")
             mark = time.monotonic()
@@ -215,7 +221,7 @@ class Orchestrator:
                 try:
                     fixed, fixed_run = await self._run_sql(review.required_sql_fix, set(datasets))
                     earlier = (self.proposal, self.execution)
-                    guarded, self.execution, sql = fixed, fixed_run, fixed.sql
+                    guarded, self.execution, sql, author = fixed, fixed_run, fixed.sql, cfg.reviewer
                 except (UnsafeSqlError, QueryError) as exc:
                     issues.append(Issue(severity="medium", category="reviewer_fix_failed", description=f"The Reviewer's SQL fix didn't run: {exc}"))
             self._event("correct", "succeeded", mark)
@@ -233,7 +239,8 @@ class Orchestrator:
             self.verification.open_issues = review.issues
             return self._answer(state, question, self.proposal.draft_answer)
         self.verification.open_issues = review.issues + grounding.failures_as_issues(checks)
-        return await self._adjudicate(context, question, state, earlier, set(datasets))
+        seeds = [(cfg.analyst, p.sql, run, p.assumptions) for p, run in [earlier] if earlier and p.sql != self.proposal.sql]
+        return await self._council(context, question, state, set(datasets), seeds + [(author, self.proposal.sql, self.execution, assumptions)], "dispute")
 
     # ---- steps -------------------------------------------------------------------------------------------------
 
@@ -339,51 +346,103 @@ class Orchestrator:
         self._event("review", "succeeded", mark, review.status)
         return review
 
-    async def _adjudicate(self, context: dict[str, Any], question: str, state: ConversationState,
-                          earlier: tuple[ProposalPayload, Execution] | None, allowed: set[str]) -> AskResponse:
+    async def _council(self, context: dict[str, Any], question: str, state: ConversationState, allowed: set[str],
+                       seeds: list[tuple[str, str, Execution, list[str]]], trigger: Literal["dispute", "requested"]) -> AskResponse:
+        """Tier 2: members who haven't answered yet draft SQL independently (no anchoring); every query runs read-only;
+        results are compared by value; a judge from another family picks from anonymised, shuffled candidates."""
+        self._running("council")
+        mark = time.monotonic()
+        cfg = self.cfg
+        self.budget.max_tokens += cfg.council_extra_tokens
+        self.budget.max_calls += cfg.council_extra_calls
+        self.budget.max_sql += len(cfg.council_endpoints)
+        authors = {e for e, *_ in seeds}
+        drafters = [e for e in cfg.council_endpoints if e not in authors]
+        plans = await asyncio.gather(*(self._call("council", "council_plan", prompts.ANALYST_PLAN, self._user(context, question), AnalystPlan,
+                                                  cfg.analyst_max_out, endpoint=e) for e in drafters), return_exceptions=True)
+        candidates: list[tuple[CouncilCandidate, Execution | None, list[str]]] = [
+            (CouncilCandidate(label="", endpoint=e, status="executed", sql=sql, row_count=run.result.row_count), run, a) for e, sql, run, a in seeds]
+        for endpoint, plan in zip(drafters, plans):
+            if isinstance(plan, BaseException):
+                note = "unavailable" if isinstance(plan, ModelUnavailable) else "skipped: budget" if isinstance(plan, BudgetExhausted) else _plain_error(plan)
+                candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="failed", note=str(note)[:200]), None, []))
+            elif plan.status != "READY" or not plan.sql:
+                candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="abstained", note=plan.status), None, []))
+            else:
+                try:
+                    guarded, run = await self._run_sql(plan.sql, allowed)
+                    candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="executed", sql=guarded.sql, row_count=run.result.row_count), run, plan.assumptions))
+                except (UnsafeSqlError, QueryError, BudgetExhausted) as exc:
+                    candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="failed", sql=plan.sql, note=_plain_error(exc)[:200]), None, []))
+
+        ran = [(c, run, a) for c, run, a in candidates if run is not None]
+        groups: list[list[int]] = []  # indexes into ran whose values match
+        for i, (_, run, _) in enumerate(ran):
+            home = next((g for g in groups if compare_pair(ran[g[0]][1].result, run.result).relation == "match"), None)
+            home.append(i) if home is not None else groups.append([i])
+        groups.sort(key=len, reverse=True)  # stable: ties keep the earliest (Analyst-first) group in front
+        for n, g in enumerate(groups):
+            for i in g:
+                ran[i][0].group = n
+        largest = len(groups[0]) if groups else 0
+        agreement = "single" if len(ran) <= 1 else "full" if largest == len(ran) else "partial" if largest >= 2 else "conflict"
+        unavailable = [c.endpoint for c, run, _ in candidates if c.status == "failed" and run is None and c.sql is None]
+        if unavailable:
+            self.verification.degraded_reasons.append(f"Council member(s) unavailable: {', '.join(unavailable)}")
+        self.council = CouncilInfo(trigger=trigger, agreement=agreement, candidates=[c for c, *_ in candidates])
+        if not ran:
+            self._event("council", "failed", mark, "no candidate query ran")
+            return self._unresolved(state, question, "No council member produced a query that ran.")
+
+        order = list(range(len(ran)))
+        random.shuffle(order)  # the judge sees candidates in random order under neutral labels
+        for label, i in zip("ABCDEFGH", order):
+            ran[i][0].label = label
+        leader = ran[groups[0][0]][0].endpoint
+        judge = next((e for e in (cfg.adjudicator, *cfg.council_endpoints) if model_family(e) != model_family(leader)), cfg.adjudicator)
+        self.council.judge = judge
+        payload = {**context, "candidates": [{
+            "label": ran[i][0].label, "sql": ran[i][0].sql, "result": json.loads(grounding.summary(ran[i][1].result, cfg.max_rows_to_model, max_chars=2500)),
+            "same_values_as": [ran[j][0].label for j in groups[ran[i][0].group] if j != i]} for i in order]}
+        self._event("council", "succeeded", mark, f"{len(ran)} result(s), {agreement} agreement")
         self._running("adjudicate")
         mark = time.monotonic()
-        versions = [p for p in (earlier, (self.proposal, self.execution)) if p]
-        if len(versions) == 2 and versions[0][0].query_id == versions[1][0].query_id:
-            versions = versions[1:]
-        payload = {**context, "issues": [i.model_dump() for i in self.verification.open_issues], "versions": [
-            {"sql": p.sql, "result": json.loads(grounding.summary(run.result, self.cfg.max_rows_to_model)), "draft_answer": p.draft_answer}
-            for p, run in versions]}
         try:
-            verdict = await self._call("adjudicator", "adjudicate", prompts.ADJUDICATOR.replace("{words}", str(self.cfg.max_answer_words)),
-                                       self._user(payload, question), AdjudicationPayload, self.cfg.adjudicator_max_out)
+            verdict = await self._call("adjudicator", "judge", prompts.JUDGE.replace("{words}", str(cfg.max_answer_words)),
+                                       self._user(payload, question), JudgeVerdict, cfg.adjudicator_max_out, endpoint=judge)
         except ModelUnavailable as exc:
             self.verification.adjudicator = "DEGRADED"
-            self.verification.degraded_reasons.append(f"Adjudicator didn't run: {exc}")
-            self._event("adjudicate", "failed", mark, "Adjudicator unavailable")
-            return self._unresolved(state, question, "The Reviewer rejected the answer and the Adjudicator was unavailable.")
-        self.verification.adjudicator = verdict.decision
-        self._event("adjudicate", "succeeded", mark, verdict.decision)
-        if verdict.decision == "RESOLVED" and verdict.final_answer:
-            # The Adjudicator's figures must come from one of the executed results, like any other answer.
-            for proposal, run in reversed(versions):
-                candidate = proposal.model_copy(update={"draft_answer": verdict.final_answer})
-                checks = grounding.check(candidate, run.result, self.join_checks)
-                if not any(c.status == "failed" for c in checks):
-                    self.proposal, self.execution = proposal, run
-                    self.verification.checks = checks
-                    return self._answer(state, question, verdict.final_answer)
-            return self._unresolved(state, question, "The Adjudicator's answer included figures that aren't in any executed result.")
-        if verdict.decision == "CORRECTIVE_QUERY" and verdict.corrective_sql:
-            try:
-                guarded, self.execution = await self._run_sql(verdict.corrective_sql, allowed)
-            except (UnsafeSqlError, QueryError) as exc:
-                return self._unresolved(state, question, f"The Adjudicator's corrective query didn't run: {exc}")
-            self.proposal = ProposalPayload(query_id=uuid.uuid4().hex[:12], sql=guarded.sql, assumptions=self.proposal.assumptions, draft_answer="")
-            note = ("The Analyst and Reviewer disagreed, so the Adjudicator ran a corrective query. These figures come "
-                    f"straight from that query and weren't written up by a model. {verdict.rationale}".strip())
-            return self._answer(state, question, grounding.table_answer(self.execution.result, note))
-        return self._unresolved(state, question, verdict.rationale or "The models couldn't agree on a verifiable answer.")
+            self.verification.degraded_reasons.append(f"Judge didn't run: {exc}")
+            self._event("adjudicate", "failed", mark, "judge unavailable")
+            self.execution = ran[groups[0][0]][1]
+            return self._unresolved(state, question, "The council's judge was unavailable.")
+        self.council.chosen, self.council.rationale, self.council.disagreement = verdict.choice, verdict.rationale, verdict.disagreement
+        pick = next((i for i in range(len(ran)) if ran[i][0].label == (verdict.choice or "").strip().upper()), None)
+        if pick is None or not verdict.final_answer:
+            self.verification.adjudicator = "UNRESOLVED"
+            self._event("adjudicate", "succeeded", mark, "no candidate chosen")
+            self.execution = ran[groups[0][0]][1]
+            return self._unresolved(state, question, verdict.rationale or "The council couldn't agree on a verifiable answer.")
+        chosen, run, assumptions = ran[pick]
+        self.proposal = ProposalPayload(query_id=uuid.uuid4().hex[:12], sql=chosen.sql or "", assumptions=assumptions, draft_answer=verdict.final_answer)
+        self.execution = run
+        checks = grounding.check(self.proposal, run.result, self.join_checks)
+        self.verification.checks = checks
+        if any(c.status == "failed" for c in checks):
+            self.verification.adjudicator = "UNRESOLVED"
+            self._event("adjudicate", "failed", mark, "judge's answer failed the checks")
+            return self._unresolved(state, question, "The judge's answer included figures or claims the executed result doesn't support.")
+        self.verification.adjudicator = "RESOLVED"
+        # Verified only when another model's independent query reproduced the chosen values.
+        self.verification.reviewed = agreement in ("full", "partial") and chosen.group == 0 and largest >= 2
+        self._event("adjudicate", "succeeded", mark, f"chose {chosen.label}")
+        return self._answer(state, question, verdict.final_answer)
 
     # ---- model calls -------------------------------------------------------------------------------------------
 
-    async def _call(self, role: Role, purpose: str, role_prompt: str, user: str, contract: type[T], want_output: int, retry: bool = True) -> T:
-        endpoint = {"analyst": self.cfg.analyst, "reviewer": self.cfg.reviewer, "adjudicator": self.cfg.adjudicator}[role]
+    async def _call(self, role: Role, purpose: str, role_prompt: str, user: str, contract: type[T], want_output: int, retry: bool = True,
+                    endpoint: str | None = None) -> T:
+        endpoint = endpoint or {"analyst": self.cfg.analyst, "reviewer": self.cfg.reviewer, "adjudicator": self.cfg.adjudicator}[role]
         system = f"{prompts.POLICY}\n\n{role_prompt}"
         try:
             max_out = self.budget.reserve_call(len(system) + len(user), want_output)
@@ -420,7 +479,7 @@ class Orchestrator:
                 span.set_outputs(parsed.model_dump())
         if parsed is None:  # one more try, within the same budgets, before giving up
             return await self._call(role, f"{purpose}_retry", role_prompt, user + "\n\nYour last reply wasn't the requested JSON. "
-                                    "Reply with ONLY that JSON object.", contract, want_output, retry=False)
+                                    "Reply with ONLY that JSON object.", contract, want_output, retry=False, endpoint=endpoint)
         return parsed
 
     def _user(self, context: dict[str, Any], question: str) -> str:
@@ -489,7 +548,7 @@ class Orchestrator:
             state.applied_filters, state.last_sql, state.last_query_id = filters, self.proposal.sql, self.proposal.query_id
             state.last_question = question or state.last_question
         self._event("complete", "succeeded", time.monotonic())
-        return AskResponse(status=status, verification=v, auth=self.auth, state=state, events=self.events, sources=self.sources,
+        return AskResponse(status=status, verification=v, auth=self.auth, state=state, events=self.events, sources=self.sources, council=self.council,
                            result=preview, filters=filters, sql=self.proposal.sql if self.proposal else None,
                            query_id=self.proposal.query_id if self.proposal else None,
                            assumptions=fields.pop("assumptions", self.proposal.assumptions if self.proposal else []), **fields)

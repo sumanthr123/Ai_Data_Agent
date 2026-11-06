@@ -54,6 +54,10 @@ class AskSettings:
     analyst: str = os.getenv("ANALYST_MODEL_ENDPOINT", "gemini-3-5-flash")
     reviewer: str = os.getenv("REVIEWER_MODEL_ENDPOINT", "databricks-gpt-oss-120b")
     adjudicator: str = os.getenv("ADJUDICATOR_MODEL_ENDPOINT", "gemini-3-5-flash/gemini-pro-latest")
+    # Tier 2 council: members draft SQL independently; the judge rotates to a family that didn't author the leading result.
+    council_endpoints: tuple[str, ...] = tuple(e.strip() for e in os.getenv("COUNCIL_ENDPOINTS", "gemini-3-5-flash,databricks-gpt-oss-120b").split(",") if e.strip())
+    council_extra_tokens: int = _int("COUNCIL_EXTRA_TOKENS", 10000)
+    council_extra_calls: int = _int("COUNCIL_EXTRA_CALLS", 4)
     use_user_token: bool = os.getenv("USE_USER_TOKEN", "false").lower() in ("1", "true", "yes")
     # "debate": Analyst + independent Reviewer (+ Adjudicator). "single": the Analyst alone, the evaluation baseline.
     review_mode: str = os.getenv("REVIEW_MODE", "debate")
@@ -89,7 +93,8 @@ class AskSettings:
 
     def efforts(self) -> dict[str, str]:
         return {e: v for e, v in ((self.analyst, self.analyst_effort), (self.reviewer, self.reviewer_effort),
-                                  (self.adjudicator, self.adjudicator_effort)) if v}
+                                  (self.adjudicator, self.adjudicator_effort)) if v} | \
+            {e: "low" for e in self.council_endpoints if e not in (self.analyst, self.reviewer, self.adjudicator)}
 
     def check(self) -> None:
         """Refuse to run a 'debate' between aliases of one model."""

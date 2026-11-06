@@ -48,11 +48,11 @@ class ReviewPayload(BaseModel):
     required_sql_fix: str | None = None
 
 
-class AdjudicationPayload(BaseModel):
-    decision: Literal["RESOLVED", "CORRECTIVE_QUERY", "UNRESOLVED"]
-    rationale: str = ""
+class JudgeVerdict(BaseModel):
+    choice: str | None = None  # the label of the candidate that answers the question, or null when none does
     final_answer: str | None = None
-    corrective_sql: str | None = None
+    rationale: str = ""
+    disagreement: str | None = None
 
 
 # ---- API ---------------------------------------------------------------------------------------------------------
@@ -71,6 +71,7 @@ class ConversationState(BaseModel):
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
     datasets: list[str] = Field(default=[], max_length=10)
+    council: bool = False  # "Verify with council": skip Tier 1 and let independent models settle it on evidence
     state: ConversationState = ConversationState()
 
 
@@ -86,7 +87,7 @@ class DeterministicCheck(BaseModel):
 
 
 class ModelCall(BaseModel):
-    role: Literal["analyst", "reviewer", "adjudicator"]
+    role: Literal["analyst", "reviewer", "adjudicator", "council"]
     purpose: str
     endpoint: str
     status: Literal["ok", "failed", "timed_out", "skipped_budget"]
@@ -141,7 +142,7 @@ class AuthContext(BaseModel):
 
 
 class StageEvent(BaseModel):
-    stage: Literal["context", "clarify", "generate_sql", "web_search", "execute", "draft", "review", "correct", "adjudicate", "complete"]
+    stage: Literal["context", "clarify", "generate_sql", "web_search", "execute", "draft", "review", "correct", "council", "adjudicate", "complete"]
     status: Literal["running", "succeeded", "failed", "skipped"]
     ms: int = 0
     detail: str = ""
@@ -154,6 +155,26 @@ class WebSource(BaseModel):
     url: str
     published: str = ""
     retrieved_at: str = ""
+
+
+class CouncilCandidate(BaseModel):
+    label: str  # anonymous to the judge; the endpoint is shown to the user afterwards
+    endpoint: str
+    status: Literal["executed", "failed", "abstained"]
+    sql: str | None = None
+    row_count: int | None = None
+    group: int | None = None  # candidates with the same group returned the same values
+    note: str = ""
+
+
+class CouncilInfo(BaseModel):
+    trigger: Literal["dispute", "requested"]
+    agreement: Literal["full", "partial", "conflict", "single"]
+    candidates: list[CouncilCandidate] = []
+    judge: str = ""
+    chosen: str | None = None
+    rationale: str = ""
+    disagreement: str | None = None
 
 
 class AskResponse(BaseModel):
@@ -169,6 +190,7 @@ class AskResponse(BaseModel):
     result: ResultPreview | None = None
     sources: list[SourceInfo] = []
     web_sources: list[WebSource] = []
+    council: CouncilInfo | None = None
     verification: Verification = Verification()
     auth: AuthContext
     state: ConversationState
