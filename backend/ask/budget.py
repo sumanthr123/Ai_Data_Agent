@@ -24,7 +24,7 @@ class Budget:
         """Count the call and return the output tokens it may use, or raise if the budget can't cover it."""
         if self.calls >= self.max_calls:
             raise BudgetExhausted(f"The limit of {self.max_calls} model calls per question was reached.")
-        room = self.max_tokens - self.tokens - (prompt_chars // 3 + 1)  # conservative prompt estimate
+        room = self.max_tokens - self.tokens - (prompt_chars * 2 // 7 + 1)  # ~3.5 chars/token; measured ~3.7, so conservative
         if room < MIN_OUTPUT_TOKENS:
             raise BudgetExhausted(f"The limit of {self.max_tokens:,} model tokens per question was reached.")
         self.calls += 1

@@ -43,6 +43,7 @@ from backend.ask.text import clean_citations, json_block, plain_error
 from backend.services.sql_safety import UnsafeSqlError
 
 logger = logging.getLogger("ask")
+CACHEABLE = {"data", "docs", "code"}  # web answers are live; chat is cheap
 AGREE = {"match", "missing_fields", "scale"}
 Role = Literal["analyst", "reviewer", "adjudicator", "council"]
 T = TypeVar("T", bound=BaseModel)
@@ -106,6 +107,7 @@ class Orchestrator:
         self.events: list[StageEvent] = []
         self.sources: list[SourceInfo] = []
         self.council: CouncilInfo | None = None
+        self.answer_key: tuple | None = None
         self.versions: dict[str, str] = {}
         self.reviewer_down = False
         self.execution: Execution | None = None
@@ -120,10 +122,12 @@ class Orchestrator:
         token = logs.REQUEST_ID.set(rid)
         try:
             response = await self._traced(req, started)
+            if self.answer_key and not response.from_cache and response.status == "ANSWERED" and response.kind in CACHEABLE:
+                self.cache.put(self.answer_key, response.model_copy(deep=True))
             response.request_id = rid
             v = response.verification
             logger.info("ask %s", json.dumps({"kind": response.kind, "status": response.status, "reviewed": v.reviewed, "tokens": v.total_tokens,
-                                              "calls": v.total_model_calls, "sql": v.sql_attempts, "ms": response.total_ms,
+                                              "calls": v.total_model_calls, "sql": v.sql_attempts, "ms": response.total_ms, "cached": response.from_cache,
                                               "council": response.council.agreement if response.council else None}))
             return response
         finally:
@@ -179,6 +183,14 @@ class Orchestrator:
         if state.last_sql:  # follow-ups inherit the previous filters unless the question changes them
             context["previous"] = {"question": state.last_question, "sql": state.last_sql, "filters": state.applied_filters}
         self._event("context", "succeeded", mark, f"{len(tables)} table(s)")
+
+        # Access and table versions were just re-checked, so a cached answer here is current and allowed.
+        self.answer_key = ("answer", self.auth_key, self.user_key, json.dumps(sorted(self.versions.items())), " ".join(question.lower().split()),
+                           json.dumps([state.last_sql, state.applied_filters, state.resolved_definitions], default=str), req.council)
+        hit = self.cache.get(self.answer_key)
+        if hit is not None:
+            self._event("complete", "succeeded", time.monotonic(), "cached answer")
+            return hit.model_copy(deep=True, update={"from_cache": True, "events": list(self.events)})
 
         self._running("generate_sql")
         mark = time.monotonic()

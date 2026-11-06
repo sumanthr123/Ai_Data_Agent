@@ -207,6 +207,7 @@ class CouncilInfo(BaseModel):
 
 class AskResponse(BaseModel):
     request_id: str = ""
+    from_cache: bool = False  # the same question on the same data version was answered within the cache TTL
     kind: Literal["data", "web", "docs", "code", "chat"] = "data"
     status: Literal["ANSWERED", "NEEDS_CLARIFICATION", "INSUFFICIENT_SCHEMA", "UNRESOLVED", "BUDGET_EXHAUSTED", "ERROR"]
     answer: str = ""

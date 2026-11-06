@@ -106,7 +106,7 @@ class Faults:
                 self.injected = wrong
                 obj["draft_answer"] = obj["draft_answer"][:match.start()] + f"{wrong:,.2f}" + obj["draft_answer"][match.end():]
                 self.fired = True
-        elif self.fault == "sql_avg" and "plan the SQL" in system and obj.get("sql") and re.search(r"\bSUM\(", obj["sql"], re.I):
+        elif self.fault == "sql_avg" and "Route the question" in system and obj.get("sql") and re.search(r"\bSUM\(", obj["sql"], re.I):
             obj["sql"] = re.sub(r"\bSUM\(", "AVG(", obj["sql"], count=1, flags=re.I)
             self.fired = True
         if self.fired:

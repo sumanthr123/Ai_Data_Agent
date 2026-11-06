@@ -1,14 +1,14 @@
-"""Result cache keyed by (auth context, dataset version, normalized SQL); access is re-checked before each hit."""
+"""Results keyed by (auth context, dataset version, normalized SQL) and answers keyed by (user, data versions,
+question, conversation state); access is re-checked before each hit. Entries live for the TTL."""
 
 from __future__ import annotations
 
 import hashlib
 import threading
 import time
+from typing import Any
 
 import sqlglot
-
-from backend.ask.warehouse import Execution
 
 
 def auth_key(token: str | None) -> str:
@@ -26,10 +26,10 @@ def normalize_sql(sql: str) -> str:
 class ResultCache:
     def __init__(self, ttl_s: int, max_entries: int = 256) -> None:
         self.ttl_s, self.max_entries = ttl_s, max_entries
-        self._items: dict[tuple[str, str, str], tuple[float, Execution]] = {}
+        self._items: dict[tuple, tuple[float, Any]] = {}
         self._lock = threading.Lock()
 
-    def get(self, key: tuple[str, str, str]) -> Execution | None:
+    def get(self, key: tuple) -> Any:
         with self._lock:
             item = self._items.get(key)
             if not item or time.monotonic() - item[0] > self.ttl_s:
@@ -37,7 +37,7 @@ class ResultCache:
                 return None
             return item[1]
 
-    def put(self, key: tuple[str, str, str], value: Execution) -> None:
+    def put(self, key: tuple, value: Any) -> None:
         with self._lock:
             if len(self._items) >= self.max_entries:
                 self._items.pop(min(self._items, key=lambda k: self._items[k][0]))

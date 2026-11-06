@@ -53,7 +53,7 @@ def corpus(paths: tuple[str, ...] = DEFAULT_PATHS) -> tuple[list[Passage], list[
     return passages, counts, dict(df), avg
 
 
-def search(query: str, k: int = 4, paths: tuple[str, ...] = DEFAULT_PATHS) -> list[Passage]:
+def search(query: str, k: int = 3, paths: tuple[str, ...] = DEFAULT_PATHS) -> list[Passage]:
     """BM25 top-k passages with a positive score."""
     passages, counts, df, avg = corpus(paths)
     terms = set(_tokens(query))

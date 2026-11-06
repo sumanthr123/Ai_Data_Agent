@@ -69,7 +69,7 @@ function TurnView({ turn, live, onEvidence, onRetry, onCouncil }: { turn: Turn; 
         {r && (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-800 pt-3">
-              <span className="flex flex-wrap items-center gap-2"><KindBadge kind={r.kind ?? 'data'} /><Verdict r={r} /></span>
+              <span className="flex flex-wrap items-center gap-2"><KindBadge kind={r.kind ?? 'data'} /><Verdict r={r} />{r.from_cache && <span className="text-[11.5px] text-zinc-400" title="Same question on the same data version, answered in the last few minutes">· cached</span>}</span>
               <div className="flex items-center gap-2">
                 {(r.status === 'ERROR' || r.status === 'BUDGET_EXHAUSTED') && (
                   <button type="button" onClick={onRetry} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-zinc-300 hover:bg-zinc-800"><RotateCcw className="h-3.5 w-3.5" /> Retry</button>

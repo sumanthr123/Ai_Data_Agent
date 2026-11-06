@@ -49,6 +49,16 @@ class CompareTests(unittest.TestCase):
         self.assertNotIn(compare.compare_pair(partial, top2).relation, ("match", "missing_fields", "scale"))
 
 
+class NumberCheckTests(unittest.TestCase):
+    def test_group_totals_are_supported_but_invented_figures_are_not(self):
+        from backend.ask.text import unsupported_numbers
+        rows = [{"month": m, "category": c, "sales": s} for m, c, s in
+                [("2017-01", "Furniture", 5964.03), ("2017-01", "Technology", 16733.05), ("2017-02", "Furniture", 6866.34), ("2017-02", "Technology", 6027.02)]]
+        result = rs(["month", "category", "sales"], rows)
+        self.assertEqual(unsupported_numbers("February sales were $12,893.36 across categories.", result), [])  # 6866.34 + 6027.02
+        self.assertEqual(unsupported_numbers("February sales were $13,500.00.", result), ["$13,500.00"])
+
+
 class CitationTests(unittest.TestCase):
     def test_markers_follow_supported_claims_and_search_pages_are_dropped(self):
         text = "Max Verstappen won the race. Antonelli clinched the title."

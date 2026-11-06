@@ -55,6 +55,7 @@ export interface CouncilInfo {
 export interface DocSource { n: number; file: string; section: string; excerpt: string }
 export interface CodeInfo { language: 'sql' | 'python' | 'other'; code: string; validation: 'validated' | 'syntax_ok' | 'not_run' | 'failed' | 'untested'; detail: string; destructive: boolean }
 export interface AskResponse {
+  request_id?: string; from_cache?: boolean
   kind: 'data' | 'web' | 'docs' | 'code' | 'chat'
   status: AskStatus; answer: string; answer_truncated: boolean; clarifying_question: string | null; hypotheses: string[]
   assumptions: string[]; query_id: string | null; sql: string | null; filters: string[]; result: ResultPreview | null

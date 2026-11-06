@@ -77,10 +77,10 @@ class FakeData:
 
 
 def run(script: dict[str, list], cfg: AskSettings = CFG, question: str = "Sales by region in 2017?", state: ConversationState | None = None,
-        cache: ResultCache | None = None, data: FakeData | None = None, search=None, council: bool = False):
+        cache: ResultCache | None = None, data: FakeData | None = None, search=None, council: bool = False, user: str = "local-user"):
     models, data = FakeModels(script), data or FakeData()
     orch = Orchestrator(cfg, data, models, AuthContext(mode="service_principal"), "sp", cache or ResultCache(60), Tracer(""),
-                        **({"search": search} if search else {}))
+                        user_key=user, **({"search": search} if search else {}))
     return asyncio.run(orch.run(AskRequest(question=question, state=state or ConversationState(), council=council))), models, data
 
 
@@ -355,10 +355,26 @@ class OrchestratorTests(unittest.TestCase):
         cache, data = ResultCache(60), FakeData()
         run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, cache=cache, data=data)
         before = data.described
-        r, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, cache=cache, data=data)
+        # Different wording, same SQL: the answer cache misses, the result cache hits.
+        r, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, cache=cache, data=data, question="Region sales for 2017?")
         self.assertTrue(r.result.from_cache)
         self.assertEqual(data.executed, [SQL])
         self.assertEqual(data.described, before + 2)  # context load + access re-check for the cached result
+
+    def test_repeated_question_is_answered_from_cache_without_model_calls(self):
+        cache, data = ResultCache(60), FakeData()
+        first, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, cache=cache, data=data)
+        again, models, _ = run({}, cache=cache, data=data, question="  sales BY region in 2017? ")
+        self.assertTrue(again.from_cache)
+        self.assertEqual((again.answer, models.seen), (first.answer, []))
+        self.assertGreater(data.described, 1)  # access and table versions are re-checked before the cached answer
+
+    def test_cached_answers_are_per_user_and_per_council_flag(self):
+        cache = ResultCache(60)
+        run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, cache=cache)
+        r, models, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, cache=cache, user="someone-else")
+        self.assertFalse(r.from_cache)
+        self.assertTrue(models.seen)
 
     def test_invalid_contract_is_an_error_not_a_guess(self):
         r, _, _ = run({CFG.analyst: [{"status": "MAYBE"}, {"status": "STILL NO"}]})

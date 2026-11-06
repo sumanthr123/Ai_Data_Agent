@@ -68,6 +68,15 @@ def unsupported_numbers(narrative: str, result: ResultSet | None) -> list[str]:
         known += [v * 100 for v in vals]  # fractions written as percentages
         if len(vals) <= 20:  # "West and East together", "West exceeded East by": derived, but exactly checkable
             known += [a + b for i, a in enumerate(vals) for b in vals[i + 1:]] + [abs(a - b) for i, a in enumerate(vals) for b in vals[i + 1:]]
+        for c in result.columns:  # totals and averages per group, e.g. one month summed across categories
+            if c in result.measures:
+                continue
+            groups: dict[Any, list[float]] = {}
+            for r in result.rows:
+                if isinstance(r.get(m), (int, float)):
+                    groups.setdefault(r.get(c), []).append(float(r[m]))
+            if 1 < len(groups) < len(result.rows):
+                known += [x for g in groups.values() for x in (sum(g), sum(g) / len(g))]
     for c in result.columns:
         for r in result.rows:
             value = r.get(c)

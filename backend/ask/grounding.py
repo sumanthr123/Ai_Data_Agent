@@ -19,7 +19,7 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])(\s+)")
 
 def summary(result: ResultSet, max_rows: int, max_chars: int = 5000) -> str:
     """Compact result for a model: shape, column stats (only when the result is complete) and as many of the first
-    rows as fit in max_chars (about a quarter as many tokens)."""
+    rows as fit in max_chars (about a quarter as many tokens). Rows are arrays in column order; floats keep 4 decimals."""
     out: dict[str, Any] = {"columns": [f"{c} {t}" for c, t in zip(result.columns, result.column_types)],
                            "row_count": result.row_count, "truncated": result.truncated}
     if result.truncated:
@@ -35,11 +35,16 @@ def summary(result: ResultSet, max_rows: int, max_chars: int = 5000) -> str:
                     stat["sum_of_rows"] = round(sum(vals), 4)
             stats[m] = stat
         out["stats"] = stats
-    rows = result.rows[:max_rows]
+
+    def cell(v: Any) -> Any:
+        return round(v, 4) if isinstance(v, float) else v
+
+    rows = [[cell(r.get(c)) for c in result.columns] for r in result.rows[:max_rows]]
     while True:
         out["rows"] = rows
         if len(rows) < result.row_count:
-            out["rows_shown"] = f"first {len(rows)} of {result.row_count}"
+            out["rows_shown"] = (f"first {len(rows)} of {result.row_count}; the other rows exist in the executed result but "
+                                 "aren't shown here, so never call them missing")
         text = json.dumps(out, default=str)
         if len(text) <= max_chars or len(rows) <= 5:
             return text
