@@ -68,6 +68,7 @@ def main() -> int:
     parser.add_argument("--warehouse-id", required=True)
     parser.add_argument("--evals", default="all", help="all, none, or comma-separated category numbers")
     parser.add_argument("--frontend", action="store_true", help="also run frontend types, lint, tests and build")
+    parser.add_argument("--save-baseline", action="store_true", help="keep this gate's metrics as the release baseline")
     parser.add_argument("--env", action="append", default=[], help="KEY=VALUE set before settings are read")
     args = parser.parse_args()
     os.environ.update(e.split("=", 1) for e in args.env)
@@ -98,7 +99,7 @@ def main() -> int:
             from evals import gate
 
             print("\n== eval gate", flush=True)
-            if gate.main([]):
+            if gate.main(["--save-baseline"] if args.save_baseline else []):
                 return 1
     return 0
 

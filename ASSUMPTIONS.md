@@ -9,7 +9,7 @@ reason), or **blocked** (not possible on this workspace).
   `claude-sonnet-5-5`). `databricks-claude-opus-5-5`, `databricks-gpt-6-1-sol`, `databricks-gemini-4-argon` and
   `databricks-grok-4-7` don't exist here. The endpoint count is capped.
 - At most 3 Databricks Apps, all in use. Production is the existing app `ai-data-agent`.
-- No GitHub Actions (owner's decision). The gate is `scripts/check.sh` locally, plus the serverless job
+- No GitHub Actions (owner's decision). The gate is `scripts/check.sh`, which submits a Databricks run, plus the serverless job
   `ai-data-agent-checks` for unit tests, live evals and `evals/gate.py`.
 - Production deploys need the owner's explicit "deploy" and a source backup first (README).
 
@@ -25,15 +25,15 @@ reason), or **blocked** (not possible on this workspace).
 ## Graph
 | Spec | Status |
 |---|---|
-| LangGraph StateGraph, `Send`, `defer=True`, reducers | adapted: `orchestrator.py` is a plain async state machine. Its failure modes (a failed member, quorum, ordering) are handled and tested directly. A port wasn't chosen |
+| LangGraph StateGraph, `Send`, `defer=True`, reducers | **done for tier 2** (`council_graph.py`): drafts fan out with `Send`, `verify` is deferred, and a reducer collects drafts, which are re-sorted because arrival order varies. The tier 1 path stays plain async. Adapted: a member's timeout uses `asyncio.wait_for` inside its node, so a slow model is a failed vote and not a failed superstep; retries stay in `models.py` because a `RetryPolicy` on top would multiply them |
 | 1 route; ambiguous → clarify | done (`CLARIFY`; a missing comparison defaults to the previous period, and the answer says so) |
-| 2 independent fan-out, JSON contract | adapted: **tiered for cost**. Analyst + Reviewer first; the council (independent SQL, no peer visibility) runs only on a dispute or when asked |
+| 2 independent fan-out, JSON contract | adapted: **tiered for cost**. Analyst + Reviewer first; the council (three families by default in `app.yaml`: GPT-OSS, Llama, Gemini; no peer visibility) runs only on a dispute or when asked |
 | 3 verify: execute read-only, normalise, cluster | done (`compare.py` groups by value). Live answers need URLs and a retrieval time |
 | 4 early stop | done at tier 1: an approved answer that passes every check never reaches the council |
 | 5 critique ≤ 1 round | adapted: the single correction cycle (the Analyst revises against the Reviewer's issues and check failures) |
 | 6 judge: shuffled, anonymised, other family, verified candidates only | done; the judge's answer is re-checked against the executed result |
 | 7 confidence / abstain | **added**: quorum. One model's queries count as one vote; with no two models agreeing (or one left) it abstains without calling a judge, shows each candidate's SQL and the leading result, and queues the question for review. No numeric confidence: the project rule is "no confidence %"; `verification.reviewed` is the signal |
-| 8 finalize with SQL, freshness, degraded flag | done; **added** a `freshness` warning when a shared table's UC update time is older than `STALE_AFTER_HOURS` (36; the refresh is daily). It uses UC `updated_at`, which tracks the refresh job's writes (checked 2026-11-06), not `DESCRIBE HISTORY`, to avoid a warehouse query per question |
+| 8 finalize with SQL, freshness, degraded flag | done; **added** a `freshness` warning when a shared table's UC update time is older than `STALE_AFTER_HOURS` (36; the refresh is daily). **Added** per-table SLAs in `datasets.json` and `freshness.py` (60 s cache). Materialized views have no `DESCRIBE HISTORY`, and a refresh that finds no new data adds no commit, so it reads `Last Refreshed` from `DESCRIBE EXTENDED` first and history second. `required_s` flags "today" or "live" questions against older data (`freshness_unmet`, `data_as_of`). Plain tables without a policy keep using UC `updated_at` |
 | Budget cap per request | done (`budget.py`: calls, tokens incl. reasoning, SQL attempts) |
 
 ## SQL guardrails
@@ -42,17 +42,33 @@ Done in `sql_guard.py`: one statement, SELECT/WITH only, approved tables only, n
 and byte limit are set on the Statement Execution API call. Model-written SQL has its values inline (it is parsed and
 allowlisted, not parameterised). Backend-owned SQL (registry, ingestion, review queue) uses `:named` parameters.
 
+## Data layer (`data/`, its own bundle)
+A separate bundle because a dev deploy of the root bundle would create a fourth app. Dev schemas are `dev_<user>_*`.
+| Spec | Status |
+|---|---|
+| Medallion pipeline, Auto Loader, AUTO CDC SCD1, expectations | done and run on dev: late, duplicate, delete and null-sequence events resolve correctly. Zerobus not used: the source is a CSV plus a JSON change feed |
+| `agent_gold`: prejoined view + metric view with synonyms | done on dev. The view matched the old table on every eval category. The agent is pointed at the lookup view only; the metric view is published and verified by hand, but not offered to the planner |
+| Freshness config, `mode` | one gold table, `triggered`, SLA 36 h. `continuous_job` and Lakebase not used: the SLA doesn't need them |
+| Spark and pipeline tests | adapted: run against the real dev pipeline with `data/fixtures/changes.json` rather than databricks-connect suites. No automated `tests/spark` folder |
+| Predictive optimization, Data Quality Monitoring, freshness SQL alerts | not set up |
+
 ## PySpark checklist
-Not applicable: the app runs no Spark code. Data goes through the SQL warehouse, and uploads use `read_files` SQL.
-There are no Spark tests to add.
+Applied in `data/pipelines/`: `try_cast`/`try_to_date`, DECIMAL money, `skipChangeCommits`, no `collect` without a limit. Found on
+real data: the file writes two-digit years, which `M/d/yyyy` reads as year 16, so `M/d/yy` is tried first.
+
+## GDPR
+`data/jobs/gdpr.py` run end to end on dev: the subject left bronze, silver, gold, `agent_gold` and traces, and only their rows.
+- Old versions stay readable by time travel until the 7-day retention passes, so the job purges on every run and is scheduled weekly (paused on dev).
+- The landing volume is the source of record and isn't purged by the job. Purge it before any bronze full refresh, or the person returns.
+- Not exercised after the code moved into `erase()`: only the nothing-pending path was rerun. Production trace tables are not configured yet. No Lakebase here.
 
 ## Observability and eval
 | Spec | Status |
 |---|---|
 | MLflow traces with redaction | done (`tracing.py`; off unless `MLFLOW_EXPERIMENT` is set) |
-| ≥ 100 eval cases | adapted: 19 live cases × 2 modes plus 7 deterministic, in 10 categories, with truth from SQL. Not padded to 100: each live run is billed, and repeated runs of fewer cases (pooled by the gate) were preferred |
+| ≥ 100 eval cases | adapted: 27 live cases (19 in both modes) plus 7 deterministic, in 12 categories, with truth from SQL. Not padded to 100: each live run is billed, and repeated runs of fewer cases (pooled by the gate) were preferred |
 | Scorers + gate thresholds | **added** `evals/gate.py`: sql_result_match, correctness, safety, abstention_appropriate, confident-wrong, p95, a no-drop rule vs baseline, and a debate vs single-model table. Groundedness for live answers isn't gated: there's no live-web eval case with a known truth |
-| Panel vs best-model×3 | not done: it needs 3× the eval spend; debate vs single model is reported |
+| Panel vs best-model×3, metric-view and Ontology ablations | not done: each needs another full set of eval runs; debate vs single model is reported |
 
 ## Bundle and CI
 - **Added** a `prod` target (production mode, `main` only, explicit root_path, run_as, permissions) for `ai-data-agent`.
@@ -60,6 +76,10 @@ There are no Spark tests to add.
 - No `resources/jobs` in the bundle: the checks job already exists outside it (id 544093914143207), and the refresh job
   belongs to the older project.
 - GitHub Actions / OIDC: blocked by the owner's decision.
+
+## Not possible or not done on this workspace
+OBO row filters (two users differ): one account here, not tested. Lakehouse Federation live path: no connection exists. ABAC masks:
+`customer_name` is exposed as before. MLflow tracing stays `tracing.py`; `mlflow.langchain.autolog` isn't used.
 
 ## Required test cases (backend/tests)
 injection (`test_untrusted_data_cannot_close_its_tag`, `SqlGuardTests.test_blocks`, eval 5a) · PII

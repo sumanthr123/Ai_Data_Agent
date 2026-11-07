@@ -43,9 +43,5 @@ pre-deploy gate (`scripts/checks_run.json`): backend tests, then frontend types,
 the dev copy. Live evals: the job `ai-data-agent-checks`, or a submit with `--evals all`. `evals/gate.py` pools the last 3 runs.
 
 ## Commands
-```bash
-python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
-DATABRICKS_CONFIG_PROFILE=<profile> DATABRICKS_WAREHOUSE_ID=<id> uvicorn app:app --port 8000 --reload
-cd frontend && npm install && npm run dev     # /api proxied to :8000
-```
+Never run the app, tests, builds or evals locally; see Tests above. A workstation only edits, commits and starts jobs.
 Deploy: see README.md (back up the deployed source first; production deploys need explicit approval).
