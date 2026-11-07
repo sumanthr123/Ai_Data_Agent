@@ -1,4 +1,7 @@
-"""Optional MLflow tracing with redaction. A no-op unless MLFLOW_EXPERIMENT is set; never fails a request."""
+"""Optional MLflow tracing. A no-op unless MLFLOW_EXPERIMENT is set; never fails a request.
+
+Spans carry metadata (route, model, tokens, latency) and no free text unless content=True: prompts hold questions and sample
+rows, and the GDPR job can't reach an experiment. Text that is kept is redacted."""
 
 from __future__ import annotations
 
@@ -16,6 +19,9 @@ _REDACTIONS = [
     (re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"), "[email]"),
     (re.compile(r"\+?\(?\b\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b"), "[phone]"),
 ]
+
+
+_TEXT_KEYS = {"question", "user", "sql"}
 
 
 def redact(value: Any, limit: int = 2000) -> Any:
@@ -37,8 +43,8 @@ class _NoSpan:
 
 
 class Tracer:
-    def __init__(self, experiment: str) -> None:
-        self.experiment = experiment
+    def __init__(self, experiment: str, content: bool = False) -> None:
+        self.experiment, self.content = experiment, content
         self._ready: bool | None = None
 
     def _enabled(self) -> bool:
@@ -69,8 +75,9 @@ class Tracer:
             logger.warning("Span %s not recorded: %s", name, exc)
             yield _NoSpan()
             return
-        if inputs:
-            span.set_inputs(redact(inputs))
+        kept = inputs if self.content else {k: v for k, v in (inputs or {}).items() if k not in _TEXT_KEYS}
+        if kept:
+            span.set_inputs(redact(kept))
         try:
             yield span
         except BaseException as exc:

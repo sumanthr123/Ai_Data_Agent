@@ -107,6 +107,12 @@ class LiveQuestionTests(unittest.TestCase):
         self.assertIn("live web search", r.verification.degraded_reasons[0])
         self.assertEqual(r.verification.checks[0].status, "warning")  # "Winds reach 20 km/h along the coast this afternoon." cites nothing
 
+    def test_own_business_figure_never_goes_to_the_web(self):
+        searched = []
+        r, _, data = run({CFG.analyst: [{**WEB_PLAN, "search_query": "advertising spend"}]}, question="What was our advertising spend in 2017?",
+                         search=lambda q: searched.append(q) or fake_search(q))
+        self.assertEqual((r.status, searched, data.executed), ("INSUFFICIENT_SCHEMA", [], []))
+
     def test_web_search_off_says_so_without_searching(self):
         with unittest.mock.patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
             r, models, data = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?")

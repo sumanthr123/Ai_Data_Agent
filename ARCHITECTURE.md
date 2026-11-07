@@ -27,7 +27,7 @@ Browser ──POST /api/ask {question, datasets, state}──▶ FastAPI (Databr
         ▼                                              ▼
   gemini-3-5-flash · databricks-gpt-oss-120b · gemini-pro-latest      SQL Warehouse ─▶ Unity Catalog
         │
-        ▼ MLflow traces (optional; redacted inputs, tokens incl. reasoning, latency, cost estimates)
+        ▼ MLflow traces (metadata only by default: route, model, tokens incl. reasoning, latency, cost estimates)
 ```
 
 `verification.reviewed` is true only when the Reviewer completed, approved, and every deterministic check passed.
@@ -47,7 +47,7 @@ backend/ask/
   budget.py        reservation before each call and SQL attempt
   grounding.py     deterministic checks, compact result summary, word cap
   cache.py         result cache keyed by (auth hash, dataset version, normalized SQL); access re-checked on hit
-  tracing.py       MLflow spans with redaction; no-op without MLFLOW_EXPERIMENT
+  tracing.py       MLflow spans, no free text unless TRACE_CONTENT=true; no-op without MLFLOW_EXPERIMENT
   orchestrator.py  the state machine
 backend/routers/ask.py   POST /api/ask
 backend/tests/test_ask.py

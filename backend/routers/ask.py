@@ -36,7 +36,7 @@ logger = logging.getLogger("ask.api")
 _NUMBER = re.compile(r"^-?\d[\d,]*(\.\d+)?([eE][+-]?\d+)?$")
 router = APIRouter(prefix="/api")
 _cache = ResultCache(ask_settings.cache_ttl_s)
-_tracer = Tracer(ask_settings.mlflow_experiment)
+_tracer = Tracer(ask_settings.mlflow_experiment, ask_settings.trace_content)
 SP_DISCLOSURE = ("Queries run as the app's service principal, not as you, so Unity Catalog applies the app's permissions. "
                  "Enable user authorization for the app and set USE_USER_TOKEN=true to enforce your own access.")
 

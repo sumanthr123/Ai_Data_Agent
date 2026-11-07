@@ -12,7 +12,9 @@ Names below are this deployment's (`ai-data-agent`, catalog `ai_data_agent`). Re
 | SQL warehouse `3d46aa484790192c` | CAN USE | run queries | app resource `sql-warehouse` | ✅ |
 | Catalog `ai_data_agent` | USE CATALOG | reach schemas | app resource / grant | ✅ |
 | Schema `ai_data_agent.orders` | USE SCHEMA | reach shared tables | app resource | ✅ |
-| Table `ai_data_agent.orders.superstore` | SELECT | answer questions | app resource `superstore-table` | ✅ |
+| Table `ai_data_agent.orders.superstore` | SELECT | rollback source | app resource `superstore-table` | ✅ |
+| Schema `ai_data_agent.agent_gold` | USE SCHEMA, SELECT | answer questions | `data/` bundle grants | ✅ |
+| Schema `ai_data_agent.gold`, table `gold.orders` | USE SCHEMA, SELECT | read `Last Refreshed` for freshness; `sql_guard` still refuses agent SQL here | bundle, `publish_agent_gold.py` | ✅ |
 | Volume `ai_data_agent.orders.uploads` | READ VOLUME, WRITE VOLUME | stage uploaded files | app resources `uploads-volume`, `uploads-volume-read` | ✅ |
 | Schema `ai_data_agent.user_uploads` | USE SCHEMA, CREATE TABLE, SELECT | create upload tables and the registry (the app then owns them) | direct grant, 2026-11-05 | ✅ |
 | Serving endpoint `databricks-gpt-oss-120b` | CAN QUERY | Analyst, council member | app resource `gpt-oss-120b` | ✅ |

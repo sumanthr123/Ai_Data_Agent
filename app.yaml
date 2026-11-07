@@ -14,7 +14,10 @@ env:
     value: "false"
   # /api/ask: governed Analyst -> Reviewer pipeline, council (Tier 2) on dispute or request (distinct model families; see ARCHITECTURE.md).
   - name: DEFAULT_DATASET_SOURCE
-    value: "ai_data_agent.orders.superstore"
+    value: "ai_data_agent.agent_gold.orders"
+  # Traces hold metadata only (route, model, tokens, latency); set TRACE_CONTENT=true for text, which the GDPR job can't erase here.
+  - name: MLFLOW_EXPERIMENT
+    value: "/Users/e572c2cb-a6ae-4943-9419-68439ce6dda5/ai-data-agent-traces"
   - name: UC_SCHEMA
     value: "orders"
   - name: UC_UPLOAD_VOLUME

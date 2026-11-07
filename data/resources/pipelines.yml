@@ -2,8 +2,18 @@ resources:
   schemas:
     bronze: {catalog_name: "${var.catalog}", name: bronze, comment: "Raw append-only feeds. No agent access."}
     silver: {catalog_name: "${var.catalog}", name: silver, comment: "Cleansed current state. No agent access."}
-    gold: {catalog_name: "${var.catalog}", name: gold, comment: "Business tables."}
-    agent_gold: {catalog_name: "${var.catalog}", name: agent_gold, comment: "The only schema the agent reads."}
+    gold:
+      catalog_name: ${var.catalog}
+      name: gold
+      comment: Business tables.
+      grants:
+        - {principal: "${var.app_principal}", privileges: [USE_SCHEMA]}
+    agent_gold:
+      catalog_name: ${var.catalog}
+      name: agent_gold
+      comment: The only schema the agent reads.
+      grants:
+        - {principal: "${var.app_principal}", privileges: [USE_SCHEMA, SELECT]}
     agent_ops: {catalog_name: "${var.catalog}", name: agent_ops, comment: "Deletion requests and operations. No agent access."}
 
   volumes:
@@ -19,10 +29,7 @@ resources:
       catalog: ${var.catalog}
       schema: ${resources.schemas.gold.name}
       serverless: true
-      edition: ADVANCED
       channel: CURRENT
-      photon: true
-      development: false
       configuration:
         agent.catalog: ${var.catalog}
         agent.prefix: ${var.prefix}

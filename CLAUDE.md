@@ -36,6 +36,8 @@ correctness; there's no confidence %.
 ## Data layer (`data/`)
 A separate bundle (the root bundle's app has no slot here): `cd data && databricks bundle deploy`. Dev schemas are `dev_<user>_*`;
 `SCHEMA_PREFIX` selects them in `datasets.json`. Pipelines use Free Edition compute that production shares, so run them sparingly.
+Production reads `ai_data_agent.agent_gold.orders`. The refresh job runs pipeline -> publish -> `validate_agent_gold.py`, which fails the job when
+the views disagree with gold. Grants live in the bundle. New tables holding free text go in `trace_tables`; a trace must not hold text the GDPR job can't reach.
 
 ## Tests
 Everything runs in Databricks, nothing locally. `scripts/check.sh` syncs `git archive HEAD` to the dev copy and submits the
@@ -44,4 +46,4 @@ the dev copy. Live evals: the job `ai-data-agent-checks`, or a submit with `--ev
 
 ## Commands
 Never run the app, tests, builds or evals locally; see Tests above. A workstation only edits, commits and starts jobs.
-Deploy: see README.md (back up the deployed source first; production deploys need explicit approval).
+Deploy: `scripts/deploy.sh` after `scripts/check.sh` (backs up, deploys, smoke-tests; production deploys need explicit approval).

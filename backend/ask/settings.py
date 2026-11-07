@@ -101,6 +101,7 @@ class AskSettings:
     # {"endpoint": [usd_per_1M_input, usd_per_1M_output]}; costs are reported only for endpoints listed here.
     prices: dict = field(default_factory=lambda: _json("MODEL_PRICES_JSON", {}))
     mlflow_experiment: str = os.getenv("MLFLOW_EXPERIMENT", "")
+    trace_content: bool = os.getenv("TRACE_CONTENT", "false").lower() == "true"
 
     @property
     def registry_table(self) -> str:

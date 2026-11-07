@@ -15,6 +15,11 @@ variables:
   trace_tables:
     description: Tables holding question text, as table:col+col,... Erased subjects are deleted from them.
     default: ${var.catalog}.${var.prefix}agent_ops.trace_log:question+answer
+  app_principal:
+    description: The app's service principal. The agent reads agent_gold; gold only so freshness can read Last Refreshed.
+    default: e572c2cb-a6ae-4943-9419-68439ce6dda5
+  alert_email:
+    default: sumanth6543210@gmail.com
 
 targets:
   dev:
@@ -24,6 +29,8 @@ targets:
       prefix: dev_${workspace.current_user.short_name}_  # the name development mode gives the schemas
   prod:
     mode: production
+    variables:
+      trace_tables: ${var.catalog}.user_uploads.review_queue:question+sql+detail,${var.catalog}.app_ops.question_log:question,${var.catalog}.app_ops.answer_feedback:question+answer
     workspace:
       root_path: /Workspace/Users/sumanth6543210@gmail.com/.bundle/${bundle.name}/prod
     run_as:

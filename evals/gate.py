@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -70,6 +71,23 @@ def failures(m: dict, base: dict | None) -> list[str]:
     return bad
 
 
+def log_to_mlflow(m: dict, bad: list[str], files: list[Path]) -> None:
+    """Keeps the release history in one experiment when EVAL_EXPERIMENT is set. A logging failure never changes the verdict."""
+    name = os.getenv("EVAL_EXPERIMENT")
+    if not name:
+        return
+    try:
+        import mlflow
+
+        mlflow.set_tracking_uri("databricks")
+        mlflow.set_experiment(name)
+        with mlflow.start_run(run_name=files[-1].stem):
+            mlflow.log_metrics({k: v for k, v in m.items() if v is not None})
+            mlflow.set_tags({"gate": "failed" if bad else "passed", "pooled_runs": len(files), "dataset": os.getenv("DEFAULT_DATASET_SOURCE", "")})
+    except Exception as exc:
+        print(f"MLflow logging skipped: {exc}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=int, default=3)
@@ -90,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         cell = lambda v: "n/a" if v is None else f"{v:.3f}"  # noqa: E731
         print(f"| {k} | {cell(m[k])} | {cell(single[k])} | {cell(base.get(k)) if base else '—'} |")
     bad = failures(m, base)
+    log_to_mlflow(m, bad, files)
     if args.save_baseline and not bad:
         args.baseline.write_text(json.dumps(m, indent=2))
         print(f"Baseline saved to {args.baseline}")

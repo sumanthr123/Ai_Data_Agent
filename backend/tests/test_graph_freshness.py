@@ -2,12 +2,15 @@
 import asyncio
 import dataclasses
 import datetime as dt
+import sys
+import types
 import unittest
 import unittest.mock
 
 from backend.ask import council_graph, freshness, sql_guard
 from backend.ask.freshness import Policy
 from backend.ask.registry import Registry
+from backend.ask.tracing import Tracer
 from backend.services import analysis
 from backend.services.sql_safety import UnsafeSqlError
 from backend.ask.warehouse import Execution, QueryError
@@ -125,3 +128,18 @@ class AgentGoldGuardTests(unittest.TestCase):
             for sql in (f"SELECT * FROM ai_data_agent.{table}", f"WITH x AS (SELECT * FROM ai_data_agent.{table}) SELECT * FROM x"):
                 with self.subTest(sql=sql), self.assertRaises(UnsafeSqlError):
                     sql_guard.guard(sql, self.ALLOWED)
+
+
+class TraceContentTests(unittest.TestCase):
+    def _inputs(self, content: bool) -> dict:
+        manager = unittest.mock.MagicMock()
+        fake = types.SimpleNamespace(start_span=lambda **_: manager)
+        tracer = Tracer("exp", content)
+        tracer._ready = True
+        with unittest.mock.patch.dict(sys.modules, {"mlflow": fake}), tracer.span("ask", "AGENT", {"question": "Claire Gute's orders?", "endpoint": "m"}):
+            pass
+        return manager.__enter__.return_value.set_inputs.call_args.args[0]
+
+    def test_traces_hold_no_question_text_by_default(self):
+        self.assertEqual(self._inputs(False), {"endpoint": "m"})
+        self.assertIn("question", self._inputs(True))

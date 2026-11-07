@@ -47,10 +47,10 @@ A separate bundle because a dev deploy of the root bundle would create a fourth 
 | Spec | Status |
 |---|---|
 | Medallion pipeline, Auto Loader, AUTO CDC SCD1, expectations | done and run on dev: late, duplicate, delete and null-sequence events resolve correctly. Zerobus not used: the source is a CSV plus a JSON change feed |
-| `agent_gold`: prejoined view + metric view with synonyms | done on dev. The view matched the old table on every eval category. The agent is pointed at the lookup view only; the metric view is published and verified by hand, but not offered to the planner |
+| `agent_gold`: prejoined view + metric view with synonyms | live in production. The agent reads the lookup view. The metric view is published with currency and percent formats, and `validate_agent_gold.py` reconciles it and the view against gold on every refresh. It isn't offered to the planner: sql_result_match is already above its threshold and a second schema adds tokens to every plan |
 | Freshness config, `mode` | one gold table, `triggered`, SLA 36 h. `continuous_job` and Lakebase not used: the SLA doesn't need them |
 | Spark and pipeline tests | adapted: run against the real dev pipeline with `data/fixtures/changes.json` rather than databricks-connect suites. No automated `tests/spark` folder |
-| Predictive optimization, Data Quality Monitoring, freshness SQL alerts | not set up |
+| Predictive optimization, Data Quality Monitoring, freshness SQL alerts | not set up: the validate task and on-failure email cover this one table without keeping a warehouse awake |
 
 ## PySpark checklist
 Applied in `data/pipelines/`: `try_cast`/`try_to_date`, DECIMAL money, `skipChangeCommits`, no `collect` without a limit. Found on
@@ -60,12 +60,13 @@ real data: the file writes two-digit years, which `M/d/yyyy` reads as year 16, s
 `data/jobs/gdpr.py` run end to end on dev: the subject left bronze, silver, gold, `agent_gold` and traces, and only their rows.
 - Old versions stay readable by time travel until the 7-day retention passes, so the job purges on every run and is scheduled weekly (paused on dev).
 - The landing volume is the source of record and isn't purged by the job. Purge it before any bronze full refresh, or the person returns.
-- Not exercised after the code moved into `erase()`: only the nothing-pending path was rerun. Production trace tables are not configured yet. No Lakebase here.
+- `erase()` passed on dev with a synthetic subject fed through the landing volume: 0 rows left in any layer or trace table, bystanders intact, request marked complete.
+- Production `trace_tables` are the review queue and the two `app_ops` logs. MLflow traces hold no free text unless `TRACE_CONTENT=true`, so they need no erasure. No Lakebase here.
 
 ## Observability and eval
 | Spec | Status |
 |---|---|
-| MLflow traces with redaction | done (`tracing.py`; off unless `MLFLOW_EXPERIMENT` is set) |
+| MLflow traces | on in production, metadata only (`tracing.py`): prompts hold sample rows and the GDPR job can't reach an experiment. `TRACE_CONTENT=true` adds redacted text |
 | ≥ 100 eval cases | adapted: 27 live cases (19 in both modes) plus 7 deterministic, in 12 categories, with truth from SQL. Not padded to 100: each live run is billed, and repeated runs of fewer cases (pooled by the gate) were preferred |
 | Scorers + gate thresholds | **added** `evals/gate.py`: sql_result_match, correctness, safety, abstention_appropriate, confident-wrong, p95, a no-drop rule vs baseline, and a debate vs single-model table. Groundedness for live answers isn't gated: there's no live-web eval case with a known truth |
 | Panel vs best-model×3, metric-view and Ontology ablations | not done: each needs another full set of eval runs; debate vs single model is reported |
@@ -79,7 +80,7 @@ real data: the file writes two-digit years, which `M/d/yyyy` reads as year 16, s
 
 ## Not possible or not done on this workspace
 OBO row filters (two users differ): one account here, not tested. Lakehouse Federation live path: no connection exists. ABAC masks:
-`customer_name` is exposed as before. MLflow tracing stays `tracing.py`; `mlflow.langchain.autolog` isn't used.
+`customer_name` is exposed as before, tagged `pii` on the view. MLflow tracing stays `tracing.py`; `mlflow.langchain.autolog` isn't used.
 
 ## Required test cases (backend/tests)
 injection (`test_untrusted_data_cannot_close_its_tag`, `SqlGuardTests.test_blocks`, eval 5a) · PII

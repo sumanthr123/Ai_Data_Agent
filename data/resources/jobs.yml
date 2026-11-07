@@ -2,13 +2,27 @@ resources:
   jobs:
     orders_refresh:
       name: ai-data-agent-orders-refresh
+      max_concurrent_runs: 1
+      timeout_seconds: 3600
+      email_notifications: {on_failure: ["${var.alert_email}"]}
+      schedule:  # paused on dev by mode: development
+        quartz_cron_expression: "0 30 6 * * ?"
+        timezone_id: UTC
       tasks:
         - task_key: pipeline
           pipeline_task: {pipeline_id: "${resources.pipelines.orders_medallion.id}"}
         - task_key: agent_gold
           depends_on: [{task_key: pipeline}]
+          max_retries: 1
+          min_retry_interval_millis: 60000
           spark_python_task:
             python_file: ../jobs/publish_agent_gold.py
+            parameters: ["${var.catalog}", "${var.prefix}", "${var.app_principal}"]
+          environment_key: default
+        - task_key: validate
+          depends_on: [{task_key: agent_gold}]
+          spark_python_task:
+            python_file: ../jobs/validate_agent_gold.py
             parameters: ["${var.catalog}", "${var.prefix}"]
           environment_key: default
       environments:
@@ -16,6 +30,9 @@ resources:
           spec: {client: "4"}
     gdpr_delete:
       name: ai-data-agent-gdpr-delete
+      max_concurrent_runs: 1
+      timeout_seconds: 3600
+      email_notifications: {on_failure: ["${var.alert_email}"]}
       schedule:
         quartz_cron_expression: "0 0 7 ? * MON"
         timezone_id: UTC

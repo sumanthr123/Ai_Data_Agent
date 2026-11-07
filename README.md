@@ -61,19 +61,17 @@ warning: the daily refresh job may have failed.
 
 ## Deploy
 
-Production is the app `ai-data-agent`. Before each deploy, back up the deployed source. Then:
+Production is the app `ai-data-agent`. Production deploys need the owner's approval.
 
 ```bash
-SRC=/Workspace/Users/<you>/consensus-agent-src
-DEV=/Workspace/Users/<you>/consensus-agent-dev
-BACKUPS=/Workspace/Users/<you>/consensus-agent-releases
-T=$(mktemp -d); git archive HEAD | tar -x -C $T                            # files pass through only to be copied
-databricks workspace export-dir $DEV/frontend/dist $T/frontend/dist        # the UI built by scripts/check.sh
-databricks workspace export-dir $SRC $T.old
-databricks workspace import-dir $T.old $BACKUPS/pre-$(date +%Y%m%d-%H%M%S) # rollback copy
-databricks workspace import-dir $T $SRC --overwrite
-databricks apps deploy ai-data-agent --source-code-path $SRC
+scripts/check.sh    # backend and frontend checks in Databricks; builds the UI
+scripts/evals.sh    # three live eval runs and the gate, against production agent_gold
+scripts/deploy.sh   # backs up the deployed source, deploys HEAD, smoke-tests
 ```
+
+`deploy.sh` keeps the old source in `consensus-agent-releases/pre-<time>`. To roll back, `databricks apps deploy ai-data-agent
+--source-code-path` that folder. Going back to the old table needs only `DEFAULT_DATASET_SOURCE=ai_data_agent.orders.superstore`:
+that table and its daily job still run.
 
 The bundle (`databricks.yml`) has a `dev` target and a `prod` target for `ai-data-agent`. `prod` isn't used yet: it needs
 a one-time `bundle deployment bind` (see the comment in the file) and deploys only from `main`.
@@ -84,10 +82,12 @@ Configuration is in `app.yaml` (see `.env.example` for every variable). Secrets 
 ## Data layer
 `data/` is a separate bundle: bronze, silver and gold pipelines, `agent_gold` views, and the GDPR job.
 ```bash
-cd data && databricks bundle deploy            # dev: writes dev_<user>_* schemas only
-databricks bundle run orders_refresh           # pipeline, then publish agent_gold
+cd data && databricks bundle deploy            # dev: writes dev_<user>_* schemas only; add -t prod for production
+databricks bundle run orders_refresh           # pipeline, publish agent_gold, then validate it against gold
 databricks bundle run gdpr_delete              # erase pending requests, purge old files
 ```
+Production runs the refresh daily at 06:30 UTC and the GDPR job on Mondays at 07:00 UTC. Either emails the owner on failure. To erase a person,
+insert their `customer_id` into `ai_data_agent.agent_ops.deletion_requests` with a NULL `completed_at`.
 | Gold table | SLA | Refresh | Monthly DBU |
 |---|---|---|---|
 | `gold.orders` | 36 h | triggered | not measured |

@@ -94,6 +94,8 @@ _CHANGE = re.compile(r"\b(drop|dropped|fall|fell|decline|declined|decrease|decre
 _COMPARISON = re.compile(r"\b(previous|prior|same month|last year|preceding|compar\w*|reference period|baseline)\b", re.I)
 _COURTESY = re.compile(r"\s*(thanks|thank you|thx|cheers|hi|hello|hey|bye|goodbye|ok|okay|great)\b", re.I)
 _METRIC = re.compile(r"\b(metric|measure)s?\b", re.I)
+_OWN_FIGURE = re.compile(r"\b(our|my)\s+(\w+\s+){0,2}(spend|spending|expenses?|costs?|budget|payroll|salar(y|ies)|revenue|sales|profits?|margins?|income|headcount)\b", re.I)
+_HAS_CODE = re.compile(r"\bselect\b[\s\S]+\bfrom\b|\bdef \w+\(|\bspark\.\w+|```", re.I)
 
 
 def _asks_only_for_comparison(question: str, clarifying: str | None) -> bool:
@@ -237,6 +239,10 @@ class Orchestrator:
             return self._finish("NEEDS_CLARIFICATION", state, clarifying_question=plan.clarifying_question, assumptions=plan.assumptions)
         if plan.status == "CHAT" and not _COURTESY.match(question) and len(knowledge.search(question)) >= 2:  # several doc sections match: docs, not chat
             plan.status, plan.search_query = "DOCS", question
+        if plan.status in ("CHAT", "DOCS") and _HAS_CODE.search(question):  # pasted code is a code question, whatever the planner said
+            plan.status = "CODE"
+        if plan.status == "WEB" and _OWN_FIGURE.search(question):  # the web can't know this business's figures, and a search is billed
+            plan.status, plan.sql, plan.missing = "INSUFFICIENT_SCHEMA", None, plan.missing or "that figure isn't in these tables"
         if plan.status == "CHAT":
             self._event("generate_sql", "skipped", mark, "conversational")
             return self._finish("ANSWERED", state, kind="chat", answer=(plan.reply or "I answer questions about your data, this project and code.").strip())
@@ -624,7 +630,7 @@ class Orchestrator:
                 parsed = None
             if parsed is not None:
                 self._record(call)
-                span.set_outputs(parsed.model_dump())
+                span.set_outputs(parsed.model_dump() if self.tracer.content else {"contract": contract.__name__})
         if parsed is None:  # one more try, within the same budgets, before giving up
             return await self._call_once(role, f"{purpose}_retry", role_prompt, user + "\n\nYour last reply wasn't the requested JSON. "
                                     "Reply with ONLY that JSON object.", contract, want_output, False, endpoint)
