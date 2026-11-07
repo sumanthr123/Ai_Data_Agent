@@ -5,7 +5,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/env.sh
 SRC=$HOME_W/consensus-agent-src BACKUPS=$HOME_W/consensus-agent-releases
-QUESTION=${SMOKE_QUESTION:-What are total sales across all orders in the data?}
 [ -z "$(git status --porcelain -- backend evals/*.py frontend/src app.py app.yaml requirements.txt)" ] || { echo "Commit first: deploys use HEAD."; exit 1; }
 new=$(mktemp -d) old=$(mktemp -d); trap 'rm -rf "$new" "$old"' EXIT
 backup=${KEEP_BACKUP:-pre-$(date +%Y%m%d-%H%M%S)}
@@ -25,25 +24,4 @@ for attempt in 1 2 3; do
 done
 databricks apps deploy "$APP" --source-code-path "$SRC"
 
-url=$(databricks apps get "$APP" -o json | python3 -c "import json,sys; print(json.load(sys.stdin)['url'])")
-token=$(databricks auth token -o json | python3 -c "import json,sys; print(json.load(sys.stdin)['access_token'])")
-ask() { curl -sS --max-time 180 -H "Authorization: Bearer $token" -H 'Content-Type: application/json' "$url/api/ask" -d "$1"; }
-fail() { echo "SMOKE FAILED: $1. Roll back: databricks apps deploy $APP --source-code-path $BACKUPS/$backup"; exit 1; }
-curl -sSf --max-time 60 -H "Authorization: Bearer $token" "$url/api/health" >/dev/null || fail health
-curl -sSf --max-time 60 -H "Authorization: Bearer $token" "$url/api/ask/models" >/dev/null || fail models
-curl -sSf --max-time 120 -H "Authorization: Bearer $token" "$url/api/ask/datasets" | python3 -c "
-import json, sys
-shared = [d['dataset'] for d in json.load(sys.stdin) if d['kind'] == 'shared']
-print('Listed:', shared)
-sys.exit(shared[:1] != ['$DEFAULT_DATASET'])" || fail "the UI would not preselect $DEFAULT_DATASET"
-for council in false true; do
-  ask "$(QUESTION="$QUESTION" COUNCIL="$council" python3 -c "
-import json, os
-print(json.dumps({'question': os.environ['QUESTION'], 'council': os.environ['COUNCIL'] == 'true'}))")" | python3 -c "
-import json, sys
-text = sys.stdin.read()
-r = json.loads(text)
-print(r['status'], 'reviewed' if r['verification']['reviewed'] else 'not reviewed', r['verification']['total_tokens'], 'tokens')
-sys.exit(r['status'] != 'ANSWERED' or '$DEFAULT_DATASET' not in text)" || fail "question with council=$council"
-done
-echo "Deployed and smoke-tested: $url"
+scripts/smoke.sh || { echo "SMOKE FAILED. Roll back: databricks apps deploy $APP --source-code-path $BACKUPS/$backup"; exit 1; }

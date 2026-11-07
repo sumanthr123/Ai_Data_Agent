@@ -66,7 +66,7 @@ real data: the file writes two-digit years, which `M/d/yyyy` reads as year 16, s
 ## Observability and eval
 | Spec | Status |
 |---|---|
-| MLflow traces | on in production, metadata only (`tracing.py`): prompts hold sample rows and the GDPR job can't reach an experiment. `TRACE_CONTENT=true` adds redacted text |
+| MLflow traces | partly working. On in production, metadata only (`tracing.py`): prompts hold sample rows and the GDPR job can't reach an experiment. Each question's summary (status, tokens, calls, latency) reaches the experiment, but span detail doesn't: the app gets connection refused from the workspace storage host, so the log shows `Failed to send trace to MLflow backend`. Per-call detail is in the `ask {...}` log line |
 | ≥ 100 eval cases | adapted: 27 live cases (19 in both modes) plus 7 deterministic, in 12 categories, with truth from SQL. Not padded to 100: each live run is billed, and repeated runs of fewer cases (pooled by the gate) were preferred |
 | Scorers + gate thresholds | **added** `evals/gate.py`: sql_result_match, correctness, safety, abstention_appropriate, confident-wrong, p95, a no-drop rule vs baseline, and a debate vs single-model table. Groundedness for live answers isn't gated: there's no live-web eval case with a known truth |
 | Panel vs best-model×3, metric-view and Ontology ablations | not done: each needs another full set of eval runs; debate vs single model is reported |
