@@ -305,6 +305,21 @@ class SqlGuardTests(unittest.TestCase):
         g = sql_guard.guard(f"WITH t AS (SELECT * FROM {TABLE}) SELECT COUNT(*) FROM t", {TABLE})
         self.assertEqual(g.tables, [TABLE])
 
+    def test_invented_main_catalog_is_repaired_only_for_approved_tables(self):
+        g = sql_guard.guard(f"SELECT COUNT(*) AS n FROM MAIN.{TABLE} s WHERE s.sales > 0", {TABLE})
+        self.assertEqual(g.tables, [TABLE])
+        self.assertIn(f"FROM {TABLE} AS s", g.sql)
+        self.assertNotIn("main", g.sql.lower())
+        joined = sql_guard.guard(f"SELECT 1 FROM main.{TABLE} a JOIN {TABLE} b ON a.row_id = b.row_id", {TABLE})
+        self.assertNotIn("main", joined.sql.lower())
+        self.assertTrue(joined.has_join)
+        plain = f"select count(*) from {TABLE}"
+        self.assertEqual(sql_guard.guard(plain, {TABLE}).sql, plain)  # SQL needing no repair isn't reformatted
+        for sql in ("SELECT * FROM main.system.access.audit", "SELECT * FROM main.ai_data_agent.orders.other",
+                    f"SELECT * FROM other.{TABLE}", f"SELECT * FROM a.main.{TABLE}"):
+            with self.assertRaises(UnsafeSqlError):
+                sql_guard.guard(sql, {TABLE})
+
     def test_blocks(self):
         for sql in ("DROP TABLE ai_data_agent.orders.superstore", f"DELETE FROM {TABLE}", "SELECT * FROM system.access.audit",
                     "SELECT * FROM read_files('/Volumes/x/y/z')", "SELECT * FROM delta.`/tmp/x`", "SELECT * FROM superstore",

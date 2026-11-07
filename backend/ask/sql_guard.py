@@ -32,13 +32,32 @@ def _function_name(node: exp.Func) -> str:
     return (node.name if isinstance(node, exp.Anonymous) else node.sql_name()).lower()
 
 
+def _drop_invented_catalog(table: exp.Table, allowed: set[str]) -> bool:
+    """Some models prefix the default catalog (main.catalog.schema.table). A table name has three parts at most, so this
+    never names a real table; repair it only when the remainder is an approved table, exactly."""
+    parts = table.this
+    if not (isinstance(parts, exp.Dot) and isinstance(parts.this, exp.Identifier) and isinstance(parts.expression, exp.Identifier)):
+        return False
+    if table.catalog.lower() != "main" or f"{table.db}.{parts.this.name}.{parts.expression.name}".lower() not in allowed:
+        return False
+    catalog = table.args["db"]
+    table.set("catalog", catalog)
+    table.set("db", parts.this)
+    table.set("this", parts.expression)
+    return True
+
+
 def guard(sql: str, allowed_tables: set[str]) -> GuardedSql:
     text = validate(sql)
     tree = sqlglot.parse_one(text, read="databricks")
     ctes = {cte.alias_or_name.lower() for cte in tree.find_all(exp.CTE)}
     allowed = {t.lower() for t in allowed_tables}
     tables: list[str] = []
+    repaired = False
     for table in tree.find_all(exp.Table):
+        repaired = _drop_invented_catalog(table, allowed) or repaired
+        if isinstance(table.this, exp.Dot):
+            raise UnsafeSqlError(f"Table names have three parts, catalog.schema.table: {table.sql(dialect='databricks')}.")
         if not isinstance(table.this, exp.Identifier):
             raise UnsafeSqlError("Table-valued functions and file paths are not allowed; query approved tables only.")
         if not table.catalog and not table.db and table.name.lower() in ctes:
@@ -58,7 +77,7 @@ def guard(sql: str, allowed_tables: set[str]) -> GuardedSql:
             raise UnsafeSqlError(f"Function {name}() is not allowed.")
     if not tables:
         raise UnsafeSqlError("The query must read at least one approved table.")
-    return GuardedSql(text, tables, any(True for _ in tree.find_all(exp.Join)))
+    return GuardedSql(tree.sql(dialect="databricks") if repaired else text, tables, any(True for _ in tree.find_all(exp.Join)))
 
 
 def filters(sql: str) -> list[str]:
