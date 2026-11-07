@@ -48,6 +48,7 @@ export default function AssistantApp() {
   const theme = useTheme()
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const defaults = useMemo(() => datasets.filter((d) => d.kind === 'shared').slice(0, 1).map((d) => d.dataset), [datasets])
   const a = useAssistant(defaults)
   const [draft, setDraft] = useState('')
@@ -78,9 +79,11 @@ export default function AssistantApp() {
       const list = await listDatasets()
       setDatasets(list)
       setLoadError(null)
+      setLoaded(true)
       if (select) a.setDatasets([...new Set([...(a.active?.datasets ?? defaults), select])])
     } catch (err) {
       setLoadError((err as Error).message)
+      setLoaded(true)
     }
   }, [a, defaults])
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -176,7 +179,7 @@ export default function AssistantApp() {
           <button type="button" onClick={() => setScopeOpen((o) => !o)} aria-expanded={scopeOpen} aria-controls="scope"
             className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-line px-2 text-[12.5px] text-fg-2 hover:border-line-strong hover:text-fg">
             <Database className="h-3.5 w-3.5" aria-hidden />
-            {chosenSets.length ? `${chosenSets.map(label).join(', ')} · ${chosenSets.length} dataset${chosenSets.length === 1 ? '' : 's'}` : 'No dataset'}
+            {!loaded ? 'Loading datasets…' : chosenSets.length ? `${chosenSets.map(label).join(', ')} · ${chosenSets.length} dataset${chosenSets.length === 1 ? '' : 's'}` : 'No dataset'}
             <span className="hidden sm:inline">· What's in here</span>
           </button>
           {scopeOpen && (
@@ -266,7 +269,7 @@ export default function AssistantApp() {
               <div className="flex items-end gap-2 rounded-lg border border-line-strong bg-surface p-2 focus-within:border-accent">
                 <label htmlFor="ask" className="sr-only">Ask a question about your data</label>
                 <textarea id="ask" ref={box} rows={1} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onComposerKey} maxLength={4000}
-                  placeholder={pending ? 'Your answer…' : selected.length ? 'Ask about your data…' : 'Select a dataset to start'}
+                  placeholder={pending ? 'Your answer…' : !loaded ? 'Loading datasets…' : selected.length ? 'Ask about your data…' : 'Select a dataset to start'}
                   className="max-h-40 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[15px] text-fg placeholder:text-fg-3 focus:outline-none" />
                 {a.busy ? (
                   <button type="button" onClick={a.cancel} aria-label="Stop" className="rounded-md bg-fg p-2.5 text-bg hover:opacity-90"><Square className="h-4 w-4" /></button>
@@ -276,7 +279,7 @@ export default function AssistantApp() {
                 )}
               </div>
               <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] text-fg-3">
-                <span>{chosenSets.length ? `Answers come from ${chosenSets.map(label).join(', ')}; check the SQL for important decisions.` : 'No dataset selected.'}</span>
+                <span>{!loaded ? 'Loading datasets…' : chosenSets.length ? `Answers come from ${chosenSets.map(label).join(', ')}; check the SQL for important decisions.` : 'No dataset selected.'}</span>
                 <label className="inline-flex items-center gap-1.5">
                   Model
                   <select value={chosen ?? ''} onChange={(e) => pickModel(e.target.value)} disabled={a.busy}

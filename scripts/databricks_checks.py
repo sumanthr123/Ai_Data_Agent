@@ -58,7 +58,10 @@ def _frontend(root: Path) -> bool:
         if done.returncode:
             print((done.stdout + done.stderr)[-3000:])
             return False
-    shutil.copytree(work / "dist", root / "frontend" / "dist", dirs_exist_ok=True)
+    target = root / "frontend" / "dist"
+    if target.exists():  # replace, not merge: old hashed bundles would otherwise ship with every deploy
+        shutil.rmtree(target)
+    shutil.copytree(work / "dist", target)
     return True
 
 

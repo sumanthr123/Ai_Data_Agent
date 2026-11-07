@@ -15,8 +15,7 @@ function merge(stages: StageEvent[], e: StageEvent): StageEvent[] {
 }
 
 /** The streaming state, driven by mock events with realistic delays, including a slow warehouse start. */
-function Replay({ onAction }: { onAction: (t: Turn, a: TurnAction) => void }) {
-  const theme = useTheme()
+function Replay({ theme, onAction }: { theme: string; onAction: (t: Turn, a: TurnAction) => void }) {
   const [run, setRun] = useState(0)
   const [turn, setTurn] = useState<Turn>({ id: 'live', question: 'What were total sales by region in 2017?', stages: [], datasets: [], startedAt: Date.now() })
   const done = turn.stages.some((s) => s.stage === 'review' && s.status === 'succeeded')
@@ -29,7 +28,7 @@ function Replay({ onAction }: { onAction: (t: Turn, a: TurnAction) => void }) {
   }, [run])
   return (
     <div className="space-y-2">
-      <AnswerCard turn={turn} live={!turn.response} theme={theme.resolved} shape={SHAPE} onAction={onAction} />
+      <AnswerCard turn={turn} live={!turn.response} theme={theme} shape={SHAPE} onAction={onAction} />
       {(done || turn.response) && <button type="button" onClick={() => setRun((r) => r + 1)} className="min-h-7 rounded-md border border-line px-3 text-[12.5px] text-fg-2 hover:text-fg">Replay</button>}
     </div>
   )
@@ -50,7 +49,7 @@ export default function StatesGallery() {
       <main className="grid gap-8 p-4 xl:grid-cols-2">
         <section aria-labelledby="g-stream" className="space-y-2">
           <h2 id="g-stream" className="text-[13px] font-semibold uppercase tracking-wide text-fg-3">Streaming <span className="font-normal normal-case">· vertical steps, elapsed time, fixed-size skeleton</span></h2>
-          <Replay onAction={onAction} />
+          <Replay theme={theme.resolved} onAction={onAction} />
         </section>
         {GALLERY.map((g) => (
           <section key={g.turn.id} aria-labelledby={`g-${g.turn.id}`} className="space-y-2">

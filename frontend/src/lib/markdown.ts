@@ -21,8 +21,9 @@ const TOKEN = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]\n]+\]\([^)\s]+\)|\[\d+\]|\*[^*\s][^
 
 /** Split one line of Markdown into styled parts. Citation markers [n] are kept only when n is a known source. */
 export function parseInline(text: string, sourceCount = 0): InlinePart[] {
-  // Models sometimes wrap math like $O(n)$ or \mathcal{O} in LaTeX; show it as plain text.
-  const clean = text.replace(/\$([^$\n]{1,40})\$/g, '$1').replace(/\\math(?:cal|rm|bf|it)\{([^}]*)\}/g, '$1')
+  // Models sometimes wrap math like $O(n)$ or \mathcal{O} in LaTeX; show it as plain text. A $ before a digit or space is
+  // currency, never math: "$43,971.37 ... $118,447.83" must keep both dollar signs.
+  const clean = text.replace(/\$(?![\d\s])([^$\n]{1,40})(?<!\s)\$/g, '$1').replace(/\\math(?:cal|rm|bf|it)\{([^}]*)\}/g, '$1')
     .replace(/\\geq?(?![A-Za-z])/g, '≥').replace(/\\leq?(?![A-Za-z])/g, '≤').replace(/\\times(?![A-Za-z])/g, '×').replace(/\\approx(?![A-Za-z])/g, '≈').replace(/\\(log|ln|exp|sqrt|max|min)(?![A-Za-z])/g, '$1')
   const parts: InlinePart[] = []
   for (const piece of clean.split(TOKEN)) {

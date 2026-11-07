@@ -67,13 +67,14 @@ function BusyRetry({ onRetry }: { onRetry: () => void }) {
   const [cancelled, setCancelled] = useState(false)
   const retry = useRef(onRetry)
   retry.current = onRetry
-  const fired = useRef(false)
+  const [fired, setFired] = useState(false)
   useEffect(() => {
-    if (cancelled || fired.current) return
-    if (left === 0) { fired.current = true; retry.current(); return }
+    if (cancelled || fired) return
+    if (left === 0) { setFired(true); retry.current(); return }
     const t = setTimeout(() => setLeft((s) => s - 1), 1000)
     return () => clearTimeout(t)
-  }, [left, cancelled])
+  }, [left, cancelled, fired])
+  if (fired) return <span className="inline-flex items-center gap-2 text-[12.5px] text-fg-2">Retried automatically <ActionButton onClick={onRetry}><RotateCcw className="h-3.5 w-3.5" aria-hidden /> Retry again</ActionButton></span>
   if (cancelled) return <ActionButton onClick={onRetry}><RotateCcw className="h-3.5 w-3.5" aria-hidden /> Retry now</ActionButton>
   return (
     <span className="inline-flex items-center gap-2 text-[12.5px] text-fg-2">

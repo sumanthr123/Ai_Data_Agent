@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
 export type ThemePref = 'system' | 'light' | 'dark'
 const KEY = 'assistant.theme'
@@ -20,9 +20,18 @@ export function resolvedTheme(): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+/** Every caller sees the same resolved theme: it is read from the page (data-theme and the OS setting), not kept per hook. */
+function subscribe(onChange: () => void) {
+  const media = window.matchMedia('(prefers-color-scheme: dark)')
+  const observer = new MutationObserver(onChange)
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  media.addEventListener('change', onChange)
+  return () => { observer.disconnect(); media.removeEventListener('change', onChange) }
+}
+
 export function useTheme() {
   const [pref, setPref] = useState<ThemePref>(read)
-  const [resolved, setResolved] = useState(resolvedTheme)
+  const resolved = useSyncExternalStore(subscribe, resolvedTheme)
   useEffect(() => {
     const root = document.documentElement
     if (pref === 'system') delete root.dataset.theme
@@ -33,11 +42,6 @@ export function useTheme() {
     } catch (err) {
       console.warn('Theme preference not saved; it lasts for this session', err)
     }
-    setResolved(resolvedTheme())
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => setResolved(resolvedTheme())
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
   }, [pref])
   const cycle = useCallback(() => setPref((p) => (p === 'system' ? 'light' : p === 'light' ? 'dark' : 'system')), [])
   return { pref, resolved, cycle }

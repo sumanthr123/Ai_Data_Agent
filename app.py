@@ -38,4 +38,5 @@ def spa(path: str) -> FileResponse:
         from fastapi import HTTPException
 
         raise HTTPException(503, "Frontend not built. Run: cd frontend && npm install && npm run build")
-    return FileResponse(index)
+    # Revalidate the page on every load so a deploy reaches users at once; the hashed /assets files never change.
+    return FileResponse(index, headers={"Cache-Control": "no-cache"})

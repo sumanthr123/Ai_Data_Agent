@@ -37,3 +37,10 @@ test('common LaTeX symbols become plain characters', () => {
 test('LaTeX function names lose their backslash', () => {
   assert.deepEqual(parseInline('**$O(\\log n)$**'), [{ kind: 'bold', text: 'O(log n)' }])
 })
+
+test('currency keeps its dollar signs; LaTeX math loses them', () => {
+  const text = (parts: ReturnType<typeof parseInline>) => parts.map((p) => ('text' in p ? p.text : '')).join('')
+  assert.equal(text(parseInline('from **$43,971.37** in January to **$118,447.83** in November')), 'from $43,971.37 in January to $118,447.83 in November')
+  assert.equal(text(parseInline('costs $5 and $10 each')), 'costs $5 and $10 each')
+  assert.equal(text(parseInline('runs in $O(n)$ time')), 'runs in O(n) time')
+})
