@@ -254,6 +254,7 @@ class ResilienceTests(unittest.TestCase):
     def test_sustained_throttling_fails_inside_the_sdk_window_and_opens_the_breaker(self):
         import http.server, threading, time
         from backend.ask import models as m
+        from backend.ask.text import plain_error
 
         hits = []
 
@@ -279,9 +280,10 @@ class ResilienceTests(unittest.TestCase):
         with unittest.mock.patch.object(m, "BREAKER", m._Breaker(threshold=2)):
             started = time.monotonic()
             for _ in range(2):
-                with self.assertRaises(TimeoutError):
+                with self.assertRaises(m.ModelThrottled) as caught:
                     client.chat("e", "s", "u", 10)
             self.assertLess(time.monotonic() - started, 10)
+            self.assertIn("Rate-limited", plain_error(caught.exception))
             sent = len(hits)
             with self.assertRaises(m.CircuitOpen):
                 client.chat("e", "s", "u", 10)

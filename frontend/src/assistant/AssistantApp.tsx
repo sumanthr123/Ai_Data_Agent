@@ -221,7 +221,6 @@ export default function AssistantApp() {
         <h1 className="text-[15px] font-semibold tracking-tight">AI Data Assistant</h1>
         <span className="hidden text-[12.5px] text-zinc-400 sm:inline">Answers from your Unity Catalog data, checked by an independent model</span>
         <div className="ml-auto flex items-center gap-1">
-          <a href="/council" className="rounded-lg px-2.5 py-1.5 text-[12.5px] text-zinc-300 hover:bg-zinc-800">Classic chat</a>
           <button type="button" onClick={() => setDrawerOpen((o) => !o)} aria-pressed={drawerOpen} aria-label="Toggle evidence panel"
             className="rounded-lg p-1.5 text-zinc-300 hover:bg-zinc-800"><PanelRight className="h-5 w-5" /></button>
         </div>

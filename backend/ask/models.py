@@ -51,6 +51,10 @@ class CircuitOpen(RuntimeError):
     pass
 
 
+class ModelThrottled(RuntimeError):
+    pass
+
+
 class _Breaker:
     """Per endpoint, shared by requests in this process: after `threshold` failures in a row, fail fast for `cooldown_s`."""
 
@@ -90,9 +94,13 @@ class ServingClient:
                 result = self._chat(endpoint, system, user, max_tokens)
                 BREAKER.record(endpoint, True)
                 return result
+            except TimeoutError as exc:  # the SDK's retry window is spent, so a second one would only delay the failure
+                BREAKER.record(endpoint, False)
+                if getattr(exc.__cause__, "retry_after_secs", None) is None:
+                    raise
+                raise ModelThrottled(f"{endpoint} is at its rate limit or out of capacity") from exc
             except Exception as exc:
-                # TimeoutError: the SDK's retry window is already spent, so a second one only delays the failure.
-                transient = not isinstance(exc, TimeoutError) and any(t in str(exc).lower() for t in TRANSIENT)
+                transient = any(t in str(exc).lower() for t in TRANSIENT)
                 if not transient or attempt == self.retries:
                     BREAKER.record(endpoint, False)
                     raise
