@@ -17,6 +17,7 @@ export interface ConversationState {
 
 export interface Issue { severity: 'high' | 'medium' | 'low'; category: string; description: string }
 export interface Check { name: string; status: 'passed' | 'failed' | 'warning' | 'skipped'; detail: string }
+export interface Identity { user: string | null; mode: 'user' | 'service_principal'; disclosure: string }
 export interface ModelOption { id: string; family: string; available: boolean; note: string }
 export interface ModelCall {
   role: 'analyst' | 'reviewer' | 'adjudicator' | 'council'; purpose: string; endpoint: string
@@ -92,5 +93,6 @@ export interface Turn {
   error?: string
   cancelled?: boolean
   datasets: string[]
+  startedAt?: number  // ms since epoch, for the elapsed clock
 }
 export interface Conversation { id: string; title: string; updatedAt: number; turns: Turn[]; state: ConversationState | null; datasets: string[] }

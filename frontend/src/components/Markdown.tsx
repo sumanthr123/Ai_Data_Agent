@@ -6,7 +6,7 @@ import { CodeBlock } from './CodeBlock'
 /** Renders the Markdown agents produce: headings, lists, tables, paragraphs, links and [n] citations. */
 export function Markdown({ text, sources = [] }: { text: string; sources?: Source[] }) {
   const inline = (line: string) => renderInline(line, sources)
-  return <div className="space-y-4 text-[15px] leading-[1.75] text-slate-200">{blocks(text, inline)}</div>
+  return <div className="space-y-4 text-[15px] leading-[1.75] text-zinc-100">{blocks(text, inline)}</div>
 }
 
 function blocks(text: string, inline: (line: string) => ReactNode[]): ReactNode[] {
@@ -36,8 +36,8 @@ function blocks(text: string, inline: (line: string) => ReactNode[]): ReactNode[
       out.push(
         <div key={out.length} className="overflow-x-auto rounded-xl border border-white/[0.07]">
           <table className="w-full text-[13px]">
-            <thead className="bg-white/[0.04]"><tr>{head.map((c, j) => <th key={j} className="px-3 py-2 text-left font-mono text-[11px] font-medium uppercase tracking-wider text-slate-400">{inline(c)}</th>)}</tr></thead>
-            <tbody>{body.map((r, k) => <tr key={k} className="border-t border-white/[0.05]">{r.map((c, j) => <td key={j} className="px-3 py-1.5 font-mono text-slate-200">{inline(c)}</td>)}</tr>)}</tbody>
+            <thead className="bg-zinc-900"><tr>{head.map((c, j) => <th key={j} className="px-3 py-2 text-left font-mono text-[11px] font-medium uppercase tracking-wider text-zinc-400">{inline(c)}</th>)}</tr></thead>
+            <tbody>{body.map((r, k) => <tr key={k} className="border-t border-white/[0.05]">{r.map((c, j) => <td key={j} className="px-3 py-1.5 font-mono text-zinc-100">{inline(c)}</td>)}</tr>)}</tbody>
           </table>
         </div>,
       )
@@ -45,7 +45,7 @@ function blocks(text: string, inline: (line: string) => ReactNode[]): ReactNode[
     }
     const heading = /^(#{1,4})\s+(.*)$/.exec(line)
     if (heading) {
-      out.push(<div key={out.length} className={heading[1].length <= 2 ? 'pt-1 text-[16px] font-semibold text-white' : 'pt-1 text-[14.5px] font-semibold text-white'}>{inline(heading[2])}</div>)
+      out.push(<div key={out.length} className={heading[1].length <= 2 ? 'pt-1 text-[16px] font-semibold text-zinc-50' : 'pt-1 text-[14.5px] font-semibold text-zinc-50'}>{inline(heading[2])}</div>)
       i++
       continue
     }
@@ -57,7 +57,7 @@ function blocks(text: string, inline: (line: string) => ReactNode[]): ReactNode[
         i++
       }
       const List = ordered ? 'ol' : 'ul'
-      out.push(<List key={out.length} className={`space-y-1 pl-5 ${ordered ? 'list-decimal' : 'list-disc'} marker:text-cyan-400/70`}>{items.map((it, k) => <li key={k}>{inline(it)}</li>)}</List>)
+      out.push(<List key={out.length} className={`space-y-1 pl-5 ${ordered ? 'list-decimal' : 'list-disc'} marker:text-brand/70`}>{items.map((it, k) => <li key={k}>{inline(it)}</li>)}</List>)
       continue
     }
     const para: string[] = []
@@ -73,9 +73,9 @@ function blocks(text: string, inline: (line: string) => ReactNode[]): ReactNode[
 function renderInline(text: string, sources: Source[]): ReactNode[] {
   return parseInline(text, sources.length).map((part, i) => {
     switch (part.kind) {
-      case 'bold': return <strong key={i} className="font-semibold text-white">{part.text}</strong>
-      case 'italic': return <em key={i} className="text-slate-300">{part.text}</em>
-      case 'code': return <code key={i} className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[12.5px] text-cyan-300">{part.text}</code>
+      case 'bold': return <strong key={i} className="font-semibold text-zinc-50">{part.text}</strong>
+      case 'italic': return <em key={i} className="text-zinc-300">{part.text}</em>
+      case 'code': return <code key={i} className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-[12.5px] text-brand">{part.text}</code>
       case 'link': return <a key={i} href={part.href} target="_blank" rel="noopener noreferrer nofollow" className="text-sky-300 underline decoration-sky-300/40 underline-offset-2 hover:text-sky-200">{part.text}</a>
       case 'cite': {
         const source = sources[part.n - 1]

@@ -1,16 +1,22 @@
-import type { AskResponse, ConversationState, Dataset, ModelOption, StageEvent, UploadResult } from './types'
+import type { AskResponse, ConversationState, Dataset, Identity, ModelOption, StageEvent, UploadResult } from './types'
 
 async function fail(res: Response): Promise<never> {
   let message = `${res.status} ${res.statusText}`
   try {
     const body = await res.json()
     if (typeof body.detail === 'string') message = body.detail
-  } catch { /* not JSON */ }
+  } catch { /* the body isn't JSON: the status line is the message */ }
   throw new Error(message)
 }
 
 export async function listDatasets(): Promise<Dataset[]> {
   const res = await fetch('/api/ask/datasets')
+  if (!res.ok) await fail(res)
+  return res.json()
+}
+
+export async function getIdentity(): Promise<Identity> {
+  const res = await fetch('/api/ask/identity')
   if (!res.ok) await fail(res)
   return res.json()
 }

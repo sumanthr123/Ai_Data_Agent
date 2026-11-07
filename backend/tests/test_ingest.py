@@ -7,6 +7,7 @@ import dataclasses
 import datetime as dt
 import io
 import json
+import types
 import unittest
 import unittest.mock
 
@@ -339,3 +340,16 @@ class IsolationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IdentityTests(unittest.TestCase):
+    def test_identity_says_whose_permissions_apply(self):
+        from backend.routers import ask as router
+
+        request = types.SimpleNamespace(headers={"x-forwarded-email": "ana@example.com"})
+        with unittest.mock.patch.object(router, "ask_settings", dataclasses.replace(router.ask_settings, use_user_token=False)):
+            sp = router.identity_of(request)
+        with unittest.mock.patch.object(router, "ask_settings", dataclasses.replace(router.ask_settings, use_user_token=True)):
+            user = router.identity_of(request)
+        self.assertEqual((sp.user, sp.mode, bool(sp.disclosure)), ("ana@example.com", "service_principal", True))
+        self.assertEqual((user.mode, user.disclosure), ("user", ""))

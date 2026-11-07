@@ -8,7 +8,8 @@ function load(): Conversation[] {
   try {
     const raw = localStorage.getItem(KEY)
     return raw ? JSON.parse(raw) : []
-  } catch {
+  } catch (err) {
+    console.warn('Saved conversations unreadable; starting empty', err)
     return []
   }
 }
@@ -16,7 +17,9 @@ function load(): Conversation[] {
 function save(conversations: Conversation[]) {
   try {
     localStorage.setItem(KEY, JSON.stringify(conversations.slice(0, 50)))
-  } catch { /* storage full or blocked: conversations still work for this session */ }
+  } catch (err) {
+    console.warn('Conversations not saved (storage full or blocked); they last for this session', err)
+  }
 }
 
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
@@ -73,7 +76,7 @@ export function useAssistant(defaultDatasets: string[]) {
     const use = datasets ?? conversation.datasets
     const changed = use.join() !== conversation.datasets.join()
     const state = changed && conversation.state ? { ...conversation.state, active_datasets: use, applied_filters: [], last_sql: null } : conversation.state
-    const turn: Turn = { id: newId(), question: question.trim(), stages: [], datasets: use }
+    const turn: Turn = { id: newId(), question: question.trim(), stages: [], datasets: use, startedAt: Date.now() }
     update(conversation.id, (c) => ({
       ...c, datasets: use, state, updatedAt: Date.now(), turns: [...c.turns, turn],
       title: c.turns.length ? c.title : question.trim().slice(0, 60),
@@ -105,5 +108,7 @@ export function useAssistant(defaultDatasets: string[]) {
     if (id === activeId) setActiveId(null)
   }, [activeId])
 
-  return { conversations, active, activeId, setActiveId, busy, ask, cancel, start, remove, setDatasets }
+  const rename = useCallback((id: string, title: string) => update(id, (c) => ({ ...c, title: title.trim().slice(0, 80) || c.title })), [update])
+
+  return { conversations, active, activeId, setActiveId, busy, ask, cancel, start, remove, rename, setDatasets }
 }

@@ -50,7 +50,7 @@ def _frontend(root: Path) -> bool:
     env = {**os.environ, "PATH": f"{home / 'bin'}:{work / 'node_modules' / '.bin'}:{os.environ['PATH']}"}
     steps = [("install", [node, npm, "ci", "--no-audit", "--no-fund"]), ("types", ["tsc", "-b", "--noEmit"]),
              ("lint", ["oxlint", "src", "--deny-warnings"]),
-             ("tests", [node, "--test", "src/lib/markdown.test.ts", "src/assistant/format.test.ts"]),
+             ("tests", [node, "--test", "src/lib/markdown.test.ts", "src/assistant/format.test.ts", "src/assistant/followups.test.ts"]),
              ("build", [node, npm, "run", "build", "--silent"])]
     for name, cmd in steps:
         done = subprocess.run(cmd, cwd=work, env=env, capture_output=True, text=True)

@@ -1,4 +1,4 @@
-import { ChevronDown, Database, FileSpreadsheet, LoaderCircle, MessageSquare, SquarePen, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, Database, FileSpreadsheet, LoaderCircle, MessageSquare, Pencil, SquarePen, Trash2, Upload } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 import { cn } from '../lib/cn'
 import { deleteUpload, uploadFile } from './api'
@@ -14,15 +14,29 @@ type UploadState =
 
 const ACCEPT = '.csv,.tsv,.xlsx'
 
-export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, conversations, activeId, onOpen, onNew, onDelete, conversationId }: {
+/** Today, the last 7 days, and older, by last update. */
+function groupByAge(list: Conversation[]): [string, Conversation[]][] {
+  const start = new Date().setHours(0, 0, 0, 0)
+  const week = start - 6 * 86400000
+  return [['Today', list.filter((c) => c.updatedAt >= start)], ['Previous 7 days', list.filter((c) => c.updatedAt < start && c.updatedAt >= week)],
+    ['Older', list.filter((c) => c.updatedAt < week)]]
+}
+
+export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, conversations, activeId, onOpen, onNew, onDelete, onRename, conversationId }: {
   datasets: Dataset[]; selected: string[]; onSelect: (names: string[]) => void; onDatasetsChanged: (select?: string) => void
   conversations: Conversation[]; activeId: string | null; onOpen: (id: string) => void; onNew: () => void; onDelete: (id: string) => void
+  onRename: (id: string, title: string) => void
   conversationId: string
 }) {
   const [upload, setUpload] = useState<UploadState>({ phase: 'idle' })
   const [dragging, setDragging] = useState(false)
   const [inspect, setInspect] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
+  const [editing, setEditing] = useState<string | null>(null)
+  const [title2, setTitle2] = useState('')
+  const [confirming, setConfirming] = useState<string | null>(null)
+  const groups = groupByAge(conversations.filter((c) => c.title.toLowerCase().includes(query.trim().toLowerCase())))
 
   const send = async (file: File, sheet?: string) => {
     setUpload({ phase: 'uploading', name: file.name })
@@ -144,26 +158,53 @@ export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, 
 
       <section aria-labelledby="conv-heading" className="min-h-0">
         <div className="mb-2 flex items-center justify-between px-1">
-          <h2 id="conv-heading" className="text-[11.5px] font-semibold uppercase tracking-wide text-zinc-400">Conversations</h2>
-          <button type="button" onClick={onNew} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-zinc-200 hover:bg-zinc-800">
-            <SquarePen className="h-3.5 w-3.5" /> New
+          <h2 id="conv-heading" className="text-[12px] font-semibold uppercase tracking-wide text-fg-3">Conversations</h2>
+          <button type="button" onClick={onNew} className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-fg hover:bg-surface-2">
+            <SquarePen className="h-3.5 w-3.5" aria-hidden /> New chat
           </button>
         </div>
-        {conversations.length === 0 ? <p className="px-1 text-[12.5px] text-zinc-400">Your conversations appear here.</p> : (
-          <ul className="space-y-0.5">
-            {conversations.map((c) => (
-              <li key={c.id} className="group flex items-center">
-                <button type="button" onClick={() => onOpen(c.id)} aria-current={c.id === activeId ? 'true' : undefined}
-                  className={cn('flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12.5px]', c.id === activeId ? 'bg-zinc-800 text-white' : 'text-zinc-300 hover:bg-zinc-900')}>
-                  <MessageSquare className="h-3.5 w-3.5 shrink-0 text-zinc-500" /><span className="truncate">{c.title}</span>
-                </button>
-                <button type="button" onClick={() => onDelete(c.id)} aria-label={`Delete conversation ${c.title}`}
-                  className="rounded p-1 text-zinc-500 opacity-0 hover:text-rose-300 focus:opacity-100 group-hover:opacity-100">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </li>
+        {conversations.length === 0 ? (
+          <p className="px-1 text-[13px] text-fg-3">No conversations yet. Ask a question to start one.</p>
+        ) : (
+          <>
+            <label htmlFor="conv-search" className="sr-only">Search conversations</label>
+            <input id="conv-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search conversations"
+              className="mb-2 min-h-8 w-full rounded-md border border-line-strong bg-surface px-2 text-[13px] text-fg placeholder:text-fg-3" />
+            {groups.every(([, list]) => list.length === 0) && <p className="px-1 text-[13px] text-fg-3">No conversation matches "{query}".</p>}
+            {groups.filter(([, list]) => list.length).map(([title, list]) => (
+              <div key={title} className="mb-2">
+                <h3 className="px-1 pb-1 text-[12px] text-fg-3">{title}</h3>
+                <ul className="space-y-0.5">
+                  {list.map((c) => (
+                    <li key={c.id} className="group flex items-center">
+                      {editing === c.id ? (
+                        <form className="flex-1" onSubmit={(e) => { e.preventDefault(); onRename(c.id, title2); setEditing(null) }}>
+                          <label htmlFor={`rename-${c.id}`} className="sr-only">Rename conversation</label>
+                          <input id={`rename-${c.id}`} autoFocus value={title2} onChange={(e) => setTitle2(e.target.value)} onBlur={() => setEditing(null)}
+                            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setEditing(null) } }}
+                            className="min-h-7 w-full rounded-md border border-accent bg-surface px-2 text-[13px] text-fg" />
+                        </form>
+                      ) : (
+                        <button type="button" onClick={() => onOpen(c.id)} aria-current={c.id === activeId ? 'true' : undefined}
+                          className={cn('flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px]', c.id === activeId ? 'bg-surface-2 font-medium text-fg' : 'text-fg-2 hover:bg-surface-2')}>
+                          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-fg-3" aria-hidden /><span className="truncate">{c.title}</span>
+                        </button>
+                      )}
+                      <button type="button" onClick={() => { setEditing(c.id); setTitle2(c.title) }} aria-label={`Rename conversation ${c.title}`}
+                        className="rounded p-1.5 text-fg-3 opacity-0 hover:text-fg focus:opacity-100 group-hover:opacity-100">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" onClick={() => { if (confirming === c.id) { onDelete(c.id); setConfirming(null) } else setConfirming(c.id) }}
+                        aria-label={confirming === c.id ? `Confirm delete of ${c.title}` : `Delete conversation ${c.title}`}
+                        className={cn('rounded p-1.5 focus:opacity-100 group-hover:opacity-100', confirming === c.id ? 'text-err opacity-100' : 'text-fg-3 opacity-0 hover:text-err')}>
+                        {confirming === c.id ? <span className="text-[12px] font-medium">Delete?</span> : <Trash2 className="h-3.5 w-3.5" />}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </>
         )}
       </section>
     </div>

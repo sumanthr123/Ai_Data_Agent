@@ -19,7 +19,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.ask.cache import ResultCache, auth_key
 from backend.ask import profiling, sql_guard
-from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, ExportRequest, ModelOption, UploadResult
+from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, ExportRequest, Identity, ModelOption, UploadResult
 from backend.ask.ingest import IngestionService, UploadRejected, user_key
 from backend.ask.models import ServingClient, model_workspace_client
 from backend.ask.orchestrator import DatabricksData, Orchestrator
@@ -149,6 +149,17 @@ def _probe(endpoint: str) -> ModelOption:
         option = ModelOption(id=endpoint, family=model_family(endpoint), available=False, note=plain_error(exc))
     _probes[endpoint] = (time.monotonic(), option)
     return option
+
+
+def identity_of(request: Request) -> Identity:
+    if ask_settings.use_user_token:
+        return Identity(user=_principal(request), mode="user")
+    return Identity(user=_principal(request), mode="service_principal", disclosure=SP_DISCLOSURE)
+
+
+@router.get("/ask/identity", response_model=Identity)
+async def identity(request: Request) -> Identity:
+    return identity_of(request)
 
 
 @router.get("/ask/models", response_model=list[ModelOption])

@@ -162,6 +162,13 @@ class AuthContext(BaseModel):
     disclosure: str = ""
 
 
+class Identity(BaseModel):
+    """Who is signed in, and whose permissions queries run with. The UI shows this before the first question."""
+    user: str | None = None
+    mode: Literal["user", "service_principal"]
+    disclosure: str = ""
+
+
 class StageEvent(BaseModel):
     stage: Literal["context", "clarify", "generate_sql", "web_search", "retrieve", "execute", "draft", "review", "correct", "council", "adjudicate", "complete"]
     status: Literal["running", "succeeded", "failed", "skipped"]

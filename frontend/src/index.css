@@ -1,88 +1,93 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --color-obsidian: #05070b;
-  --color-glass: rgba(17, 24, 39, 0.65);
-  --color-hairline: rgba(255, 255, 255, 0.07);
-  --color-glow: rgba(59, 130, 246, 0.4);
-  --color-gold: #10b981;
-  --color-silver: #f59e0b;
-  --color-bronze: #c2410c;
+/* Design tokens. Every pair used for text passes WCAG AA (4.5:1) on bg, surface and surface-2 in both themes;
+   borders-strong, accent and chart colors pass 3:1 (checked when chosen, 2026-11-07). */
+:root {
+  --bg: #F6F4EF; --surface: #FFFFFF; --surface-2: #EFECE5; --border: #DDD8CE; --border-strong: #8E887C;
+  --text: #1C1B19; --text-2: #4F4B43; --text-3: #6A655B;
+  --brand: #1F5C4A; --on-brand: #FFFFFF; --accent: #9C6608;
+  --ok: #2B6B45; --warn: #8A5A00; --err: #A8322B;
+  --chart-1: #1F5C4A; --chart-2: #B07A14; --chart-3: #3A6EA5; --chart-4: #A8443A; --chart-5: #6A5A94; --chart-6: #4E7A2C;
+  --code-kw: #3A4FB0; --code-fn: #8A5A00; --code-str: #2B6B45; --code-num: #A8322B; --code-com: #6A655B;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141412; --surface: #1C1B19; --surface-2: #26241F; --border: #34312B; --border-strong: #6E685D;
+    --text: #ECE8DF; --text-2: #BDB6A9; --text-3: #958F82;
+    --brand: #6FBF9F; --on-brand: #141412; --accent: #E3A83F;
+    --ok: #7CCB98; --warn: #E5B454; --err: #F09A92;
+    --chart-1: #6FBF9F; --chart-2: #E3A83F; --chart-3: #7FAEE0; --chart-4: #EE8F84; --chart-5: #B4A3E0; --chart-6: #9CCB72;
+    --code-kw: #9DB0F5; --code-fn: #E5B454; --code-str: #7CCB98; --code-num: #F09A92; --code-com: #958F82;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141412; --surface: #1C1B19; --surface-2: #26241F; --border: #34312B; --border-strong: #6E685D;
+  --text: #ECE8DF; --text-2: #BDB6A9; --text-3: #958F82;
+  --brand: #6FBF9F; --on-brand: #141412; --accent: #E3A83F;
+  --ok: #7CCB98; --warn: #E5B454; --err: #F09A92;
+  --chart-1: #6FBF9F; --chart-2: #E3A83F; --chart-3: #7FAEE0; --chart-4: #EE8F84; --chart-5: #B4A3E0; --chart-6: #9CCB72;
+  --code-kw: #9DB0F5; --code-fn: #E5B454; --code-str: #7CCB98; --code-num: #F09A92; --code-com: #958F82;
+  color-scheme: dark;
+}
+
+/* Semantic names for new code, and the older palette names mapped by role so existing components follow the theme. */
+@theme inline {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2);
+  --color-line: var(--border); --color-line-strong: var(--border-strong);
+  --color-fg: var(--text); --color-fg-2: var(--text-2); --color-fg-3: var(--text-3);
+  --color-brand: var(--brand); --color-on-brand: var(--on-brand); --color-accent: var(--accent);
+  --color-ok: var(--ok); --color-warn: var(--warn); --color-err: var(--err);
+
+  --color-zinc-50: var(--text); --color-zinc-100: var(--text); --color-zinc-200: var(--text); --color-zinc-300: var(--text-2);
+  --color-zinc-400: var(--text-3); --color-zinc-500: var(--text-3); --color-zinc-600: var(--border-strong); --color-zinc-700: var(--border-strong);
+  --color-zinc-800: var(--border); --color-zinc-900: var(--surface-2); --color-zinc-950: var(--bg);
+  --color-sky-100: var(--brand); --color-sky-200: var(--brand); --color-sky-300: var(--brand); --color-sky-400: var(--brand);
+  --color-emerald-100: var(--ok); --color-emerald-200: var(--ok); --color-emerald-300: var(--ok); --color-emerald-400: var(--ok);
+  --color-amber-100: var(--warn); --color-amber-200: var(--warn); --color-amber-300: var(--warn); --color-amber-400: var(--warn);
+  --color-rose-100: var(--err); --color-rose-200: var(--err); --color-rose-300: var(--err); --color-rose-400: var(--err);
 }
 
 html, body, #root { height: 100%; }
 body {
   margin: 0;
-  background: var(--color-obsidian);
-  color: #e5e7eb;
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
-::selection { background: rgba(59, 130, 246, 0.35); }
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.tnum { font-variant-numeric: tabular-nums; }
 
-/* Thin, quiet scrollbars */
-* { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
-
-@layer components {
-  .glass {
-    background: var(--color-glass);
-    backdrop-filter: blur(24px) saturate(140%);
-    -webkit-backdrop-filter: blur(24px) saturate(140%);
-    border: 1px solid var(--color-hairline);
-  }
-  .glow-border { box-shadow: 0 0 0 1px var(--color-glow), 0 0 24px -6px rgba(59, 130, 246, 0.45); }
-  .text-gradient {
-    background: linear-gradient(90deg, #22d3ee, #3b82f6 50%, #4f46e5);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
+@keyframes reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.reveal { animation: reveal 220ms ease-out both; }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
 }
-
-/* Ambient nebula behind everything */
-.nebula-bg::before, .nebula-bg::after {
-  content: "";
-  position: fixed;
-  inset: auto;
-  width: 60vw;
-  height: 60vw;
-  border-radius: 9999px;
-  filter: blur(120px);
-  opacity: 0.18;
-  pointer-events: none;
-  z-index: 0;
-}
-.nebula-bg::before { top: -25vw; left: -10vw; background: radial-gradient(circle, #06b6d4, transparent 60%); }
-.nebula-bg::after { bottom: -30vw; right: -15vw; background: radial-gradient(circle, #4f46e5, transparent 60%); }
-
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55); }
-  100% { box-shadow: 0 0 0 10px rgba(34, 211, 238, 0); }
-}
-.pulse-node { animation: pulse-ring 1.4s ease-out infinite; }
-
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-/* Code highlighting (highlight.js classes), tuned for the dark code card. */
-.hljs-keyword, .hljs-built_in.hljs-keyword, .hljs-meta .hljs-keyword { color: #8aa8ff; }
-.hljs-title.function_, .hljs-title.class_ { color: #f5d76e; }
-.hljs-string, .hljs-regexp { color: #a5e3a0; }
-.hljs-number, .hljs-literal { color: #f472b6; }
-.hljs-built_in, .hljs-type { color: #f87171; }
-.hljs-comment, .hljs-quote { color: #7c8594; font-style: italic; }
-.hljs-params, .hljs-variable { color: #c4b5fd; }
-.hljs-attr, .hljs-property { color: #7dd3fc; }
-.hljs-meta, .hljs-decorator { color: #fbbf24; }
-.hljs-operator, .hljs-punctuation { color: #cbd5e1; }
+/* Code highlighting (highlight.js classes), per theme. */
+.hljs-keyword, .hljs-built_in.hljs-keyword, .hljs-meta .hljs-keyword { color: var(--code-kw); }
+.hljs-title.function_, .hljs-title.class_, .hljs-meta, .hljs-decorator { color: var(--code-fn); }
+.hljs-string, .hljs-regexp { color: var(--code-str); }
+.hljs-number, .hljs-literal, .hljs-built_in, .hljs-type { color: var(--code-num); }
+.hljs-comment, .hljs-quote { color: var(--code-com); font-style: italic; }
+.hljs-params, .hljs-variable, .hljs-attr, .hljs-property, .hljs-operator, .hljs-punctuation { color: var(--text); }
 
-/* Visible keyboard focus on every interactive element. */
+/* Visible keyboard focus everywhere (WCAG 2.4.7); scroll-margin keeps focus clear of the sticky composer (2.4.11). */
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid #38bdf8;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: 6px;
 }
+:where(a, button, input, select, textarea, summary, [tabindex]) { scroll-margin-bottom: 140px; }

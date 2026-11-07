@@ -45,19 +45,19 @@ export function CodeBlock({ code, lang }: { code: string; lang?: string }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-[#161618] ring-1 ring-white/[0.06]">
+    <div className="overflow-hidden rounded-lg bg-surface-2 ring-1 ring-line">
       <div className="flex items-center justify-between px-5 pb-1 pt-3.5">
-        <span className="text-[13px] font-medium text-slate-200">{LABELS[language] ?? (lang || 'Code')}</span>
-        <div className="flex items-center gap-1 text-slate-400">
-          <button type="button" onClick={download} title="Download" aria-label="Download code" className="rounded-full p-1.5 hover:bg-white/10 hover:text-white">
+        <span className="text-[13px] font-medium text-zinc-100">{LABELS[language] ?? (lang || 'Code')}</span>
+        <div className="flex items-center gap-1 text-zinc-400">
+          <button type="button" onClick={download} title="Download" aria-label="Download code" className="rounded-full p-1.5 hover:bg-zinc-800 hover:text-zinc-50">
             <Download className="h-4 w-4" />
           </button>
-          <button type="button" onClick={copy} title={copied ? 'Copied' : 'Copy'} aria-label="Copy code" className="rounded-full p-1.5 hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={copy} title={copied ? 'Copied' : 'Copy'} aria-label="Copy code" className="rounded-full p-1.5 hover:bg-zinc-800 hover:text-zinc-50">
             {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}
           </button>
         </div>
       </div>
-      <pre className="hljs overflow-x-auto px-5 pb-5 pt-3 font-mono text-[13px] leading-[1.7] text-slate-100">
+      <pre className="hljs overflow-x-auto px-5 pb-5 pt-3 font-mono text-[13px] leading-[1.7] text-zinc-100">
         {html !== null ? <code dangerouslySetInnerHTML={{ __html: html }} /> : <code>{code}</code>}
       </pre>
     </div>

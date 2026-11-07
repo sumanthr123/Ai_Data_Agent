@@ -130,7 +130,7 @@ export function EvidenceDrawer({ turn, onClose }: { turn: Turn | null; onClose: 
           <div role="tablist" aria-label="Evidence sections" className="flex gap-1 border-b border-zinc-800 px-2">
             {TABS.map((t) => (
               <button key={t} role="tab" type="button" aria-selected={tab === t} onClick={() => setTab(t)}
-                className={cn('border-b-2 px-2.5 py-2 text-[12.5px]', tab === t ? 'border-sky-400 text-white' : 'border-transparent text-zinc-400 hover:text-zinc-200')}>
+                className={cn('border-b-2 px-2.5 py-2 text-[12.5px]', tab === t ? 'border-sky-400 text-zinc-50' : 'border-transparent text-zinc-400 hover:text-zinc-200')}>
                 {t}
               </button>
             ))}
