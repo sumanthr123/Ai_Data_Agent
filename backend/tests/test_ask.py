@@ -110,7 +110,7 @@ class LiveQuestionTests(unittest.TestCase):
     def test_web_search_off_says_so_without_searching(self):
         with unittest.mock.patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
             r, models, data = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?")
-        self.assertEqual((r.status, r.kind, r.answer), ("ANSWERED", "chat", WEB_OFF))
+        self.assertEqual((r.status, r.kind, r.answer), ("ANSWERED", "web", WEB_OFF))
         self.assertEqual((len(models.seen), data.executed), (1, []))
         self.assertNotIn("web_search", [e.stage for e in r.events])
 

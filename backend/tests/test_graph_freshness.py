@@ -97,6 +97,14 @@ def _with_sla(self, *a, **k):
     self.freshness = {TABLE: Policy(sla_s=60)}
 
 
+class RoutingTests(unittest.TestCase):
+    def test_courtesy_stays_chat_even_when_docs_match(self):
+        plan = {"status": "CHAT", "reply": "You're welcome."}
+        with unittest.mock.patch("backend.ask.knowledge.search", return_value=["a", "b"]):
+            r, _, _ = run({CFG.analyst: [plan]}, question="Thanks, that's all for now.")
+        self.assertEqual(r.kind, "chat")
+
+
 class AgentGoldDatasetTests(unittest.TestCase):
     def test_schema_prefix_selects_dev_or_production_names(self):
         for prefix, name in (("", "ai_data_agent.agent_gold.orders"), ("dev_x_", "ai_data_agent.dev_x_agent_gold.orders")):

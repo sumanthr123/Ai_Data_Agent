@@ -43,7 +43,7 @@ SUPERSTORE = ask_settings.default_dataset
 CATEGORIES = {
     1: "Numerical accuracy, NULLs and duplicates", 2: "Unsupported causal claims", 3: "Ambiguity → clarification",
     4: "Malformed uploads, leading zeros", 5: "Prompt injection in data", 6: "Cross-user isolation",
-    7: "Reviewer veto and adjudication", 8: "Reviewer outage disclosure", 9: "Budget exhaustion", 10: "Multi-turn filter inheritance",
+    7: "Reviewer veto and adjudication", 8: "Reviewer outage disclosure", 9: "Budget exhaustion", 10: "Multi-turn filter inheritance", 11: "Routing", 12: "Freshness and unanswerable",
 }
 USER_A, USER_B = "eval-user-a@example.com", "eval-user-b@example.com"
 _NUM = re.compile(r"-?\d[\d,]*\.?\d*")

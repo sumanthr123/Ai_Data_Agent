@@ -92,6 +92,7 @@ WEB_OFF = ("Live web search is turned off, so I can't answer questions about cur
            "data. Ask about your datasets, this app, or code.")
 _CHANGE = re.compile(r"\b(drop|dropped|fall|fell|decline|declined|decrease|decreased|dip|dipped|rise|rose|increase|increased|grow|grew|growth|jump|jumped|spike|spiked)\b", re.I)
 _COMPARISON = re.compile(r"\b(previous|prior|same month|last year|preceding|compar\w*|reference period|baseline)\b", re.I)
+_COURTESY = re.compile(r"\s*(thanks|thank you|thx|cheers|hi|hello|hey|bye|goodbye|ok|okay|great)\b", re.I)
 _METRIC = re.compile(r"\b(metric|measure)s?\b", re.I)
 
 
@@ -234,7 +235,7 @@ class Orchestrator:
             self._event("clarify", "succeeded", mark)
             state.pending_clarification, state.last_question = plan.clarifying_question, question
             return self._finish("NEEDS_CLARIFICATION", state, clarifying_question=plan.clarifying_question, assumptions=plan.assumptions)
-        if plan.status == "CHAT" and len(knowledge.search(question)) >= 2:  # matches several doc sections: a docs question, not chat
+        if plan.status == "CHAT" and not _COURTESY.match(question) and len(knowledge.search(question)) >= 2:  # several doc sections match: docs, not chat
             plan.status, plan.search_query = "DOCS", question
         if plan.status == "CHAT":
             self._event("generate_sql", "skipped", mark, "conversational")
@@ -711,7 +712,7 @@ class Orchestrator:
     async def _web(self, state: ConversationState, question: str, query: str) -> AskResponse:
         """Live question: one grounded Google Search; the answer cites the pages it came from and is labelled as such."""
         if self.search is web_search.search and not web_search.available():
-            return self._finish("ANSWERED", state, kind="chat", answer=WEB_OFF)
+            return self._finish("ANSWERED", state, kind="web", answer=WEB_OFF)
         self._running("web_search")
         mark = time.monotonic()
         self.sources = []
