@@ -1,6 +1,6 @@
 {"run_name": "consensus-agent-checks",
  "environments": [{"environment_key": "py", "spec": {"client": "2", "dependencies": [
-   "-r /Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev/requirements.txt", "nodejs-wheel==24.22.1"]}}],
+   "-r /Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev/requirements.txt", "nodejs-wheel==24.19.0"]}}],
  "tasks": [{"task_key": "checks", "environment_key": "py", "spark_python_task": {"source": "WORKSPACE",
    "python_file": "/Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev/scripts/databricks_checks.py",
    "parameters": ["--root", "/Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev", "--warehouse-id", "3d46aa484790192c",
