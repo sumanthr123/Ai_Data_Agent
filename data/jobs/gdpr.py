@@ -1,8 +1,10 @@
 """Erase requested customers from every layer. Arguments: catalog, schema prefix, pipeline id, trace tables as table:col+col,...
 
 Order matters: bronze first (else a replay restores them), then silver, then rebuild gold, then purge files.
-A full pipeline refresh after this replays pruned bronze, so history removed here does not return, by design.
-Upstream files in the landing volume are purged separately (they are the source of record)."""
+Current data is clean when this finishes. Old table versions stay readable by time travel until their files pass the 7-day
+retention, so every run purges, even with nothing pending; the weekly schedule completes each erasure.
+The landing volume is the source of record and is purged separately. Do that BEFORE any full refresh of bronze: a full
+refresh re-reads landing and would restore the person."""
 import sys
 
 from databricks.sdk import WorkspaceClient
@@ -14,11 +16,19 @@ spark = SparkSession.builder.getOrCreate()
 requests = f"{catalog}.{prefix}agent_ops.deletion_requests"
 bronze, silver = f"{catalog}.{prefix}bronze.orders_raw", f"{catalog}.{prefix}silver.orders"
 
+
+def purge() -> None:
+    for table in (bronze, silver, *(t.split(":")[0] for t in traces)):
+        spark.sql(f"REORG TABLE {table} APPLY (PURGE)")
+        spark.sql(f"VACUUM {table} RETAIN 168 HOURS")
+
+
 spark.sql(f"""CREATE TABLE IF NOT EXISTS {requests} (customer_id STRING NOT NULL, requested_at TIMESTAMP, completed_at TIMESTAMP)
 COMMENT 'Erasure requests. Holds ids only.' CLUSTER BY AUTO""")
 pending = [r.customer_id for r in spark.sql(f"SELECT DISTINCT customer_id FROM {requests} WHERE completed_at IS NULL LIMIT 1000").collect()]
 if not pending:
-    print("no pending requests")
+    purge()
+    print("no pending requests; files past retention purged")
     sys.exit(0)
 
 args = {f"c{i}": c for i, c in enumerate(pending)}
@@ -40,9 +50,7 @@ for spec in traces:  # traces hold free text, so match the person's id and name
     terms = {**args, **{f"n{i}": n for i, n in enumerate(names)}}
     match = " OR ".join(f"contains({c}, :{k})" for c in cols.split("+") for k in terms)
     spark.sql(f"DELETE FROM {table} WHERE {match}", args=terms)
-    spark.sql(f"REORG TABLE {table} APPLY (PURGE)")
 
-spark.sql(f"REORG TABLE {bronze} APPLY (PURGE)")
-spark.sql(f"VACUUM {bronze} RETAIN 168 HOURS")
+purge()
 spark.sql(f"UPDATE {requests} SET completed_at = current_timestamp() WHERE completed_at IS NULL AND customer_id IN ({ids})", args=args)
 print(f"erased {len(pending)} subject(s)")

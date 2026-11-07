@@ -16,6 +16,9 @@ resources:
           spec: {client: "4"}
     gdpr_delete:
       name: ai-data-agent-gdpr-delete
+      schedule:
+        quartz_cron_expression: "0 0 7 ? * MON"
+        timezone_id: UTC
       tasks:
         - task_key: delete_subjects
           spark_python_task:
