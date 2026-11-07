@@ -1,0 +1,33 @@
+resources:
+  schemas:
+    bronze: {catalog_name: "${var.catalog}", name: bronze, comment: "Raw append-only feeds. No agent access."}
+    silver: {catalog_name: "${var.catalog}", name: silver, comment: "Cleansed current state. No agent access."}
+    gold: {catalog_name: "${var.catalog}", name: gold, comment: "Business tables."}
+    agent_gold: {catalog_name: "${var.catalog}", name: agent_gold, comment: "The only schema the agent reads."}
+    agent_ops: {catalog_name: "${var.catalog}", name: agent_ops, comment: "Deletion requests and operations. No agent access."}
+
+  volumes:
+    landing:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.bronze.name}
+      name: landing
+      volume_type: MANAGED
+
+  pipelines:
+    orders_medallion:
+      name: ai-data-agent-orders
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.gold.name}
+      serverless: true
+      edition: ADVANCED
+      channel: CURRENT
+      photon: true
+      development: false
+      configuration:
+        agent.catalog: ${var.catalog}
+        agent.prefix: ${var.prefix}
+        agent.landing: /Volumes/${var.catalog}/${resources.schemas.bronze.name}/landing
+      libraries:
+        - file: {path: ../pipelines/bronze.py}
+        - file: {path: ../pipelines/silver.py}
+        - file: {path: ../pipelines/gold.py}

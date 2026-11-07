@@ -32,7 +32,7 @@ env:
   - name: MODEL_CHOICES
     value: "databricks-gpt-oss-120b,databricks-llama-4-maverick,databricks-qwen35-122b-a10b,gemini-3-5-flash/gemini-3-5-flash,claude-sonnet-5-5/claude-sonnet-5-5"
   - name: COUNCIL_ENDPOINTS
-    value: "databricks-gpt-oss-120b,databricks-llama-4-maverick"
+    value: "databricks-gpt-oss-120b,databricks-llama-4-maverick,gemini-3-5-flash/gemini-3-5-flash"
   - name: MAX_MODEL_CALLS_PER_QUESTION
     value: "6"
   - name: MAX_SQL_ATTEMPTS

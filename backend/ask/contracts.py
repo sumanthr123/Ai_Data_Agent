@@ -149,6 +149,7 @@ class ResultPreview(BaseModel):
 class SourceInfo(BaseModel):
     table: str
     updated_at: str | None = None
+    sla_s: int | None = None
     kind: Literal["shared", "upload"] = "shared"
     row_count: int | None = None
     date_range: list[str] | None = None
@@ -228,6 +229,8 @@ class AskResponse(BaseModel):
     filters: list[str] = []
     result: ResultPreview | None = None
     sources: list[SourceInfo] = []
+    data_as_of: dict[str, str] = {}  # table -> latest date in its data
+    freshness_unmet: bool = False  # the question needs newer data than the sources hold
     web_sources: list[WebSource] = []
     council: CouncilInfo | None = None
     doc_sources: list[DocSource] = []

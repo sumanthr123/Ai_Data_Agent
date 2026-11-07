@@ -15,6 +15,7 @@ from typing import Callable
 
 from backend.ask.contracts import DatasetRecord, Profile
 from backend.ask.profiling import table_ref
+from backend.ask.freshness import Policy
 from backend.ask.settings import AskSettings
 from backend.ask.warehouse import Execution
 
@@ -35,6 +36,7 @@ class Registry:
         self._loaded_at = 0.0
         self._profiles: dict[str, tuple[str, Profile]] = {}  # shared dataset -> (table version, profile)
         static = json.loads(_STATIC.read_text()) if _STATIC.exists() else {}
+        self.freshness = {name.lower(): Policy(**m["freshness"]) for name, m in static.items() if m.get("freshness")}
         self.shared = {name.lower(): DatasetRecord(dataset=name.lower(), kind="shared", source=name, description=m.get("description", ""),
                                                    grain=m.get("grain", ""), key_columns=m.get("key_columns", []),
                                                    grain_columns=m.get("grain_columns", []), date_column=m.get("date_column"),

@@ -24,7 +24,7 @@ from typing import Any, Callable, Literal, Protocol, TypeVar
 from databricks.sdk import WorkspaceClient
 from pydantic import BaseModel, ValidationError
 
-from backend.ask import code_check, logs, grounding, joins, knowledge, profiling, prompts, sql_guard
+from backend.ask import code_check, council_graph, freshness, logs, grounding, joins, knowledge, profiling, prompts, sql_guard
 from backend.ask.budget import Budget, BudgetExhausted
 from backend.ask.cache import ResultCache, normalize_sql
 from backend.ask.contracts import (
@@ -107,6 +107,9 @@ def _data(kind: str, text: str) -> str:
     return f'<data kind="{kind}">{safe}</data>'
 
 
+Ballot = tuple[CouncilCandidate, Execution | None, list[str]]  # candidate, its run, its assumptions
+
+
 class Orchestrator:
     def __init__(self, cfg: AskSettings, data: DataAccess, llm: ModelClient, auth: AuthContext, auth_key: str,
                  cache: ResultCache, tracer: Tracer, cancelled: threading.Event | None = None, registry: Registry | None = None,
@@ -123,6 +126,7 @@ class Orchestrator:
         self.events: list[StageEvent] = []
         self.sources: list[SourceInfo] = []
         self.council: CouncilInfo | None = None
+        self.freshness_unmet = False
         self.answer_key: tuple | None = None
         self.overrides: dict[str, str] = {}  # role -> fallback endpoint after an outage, for the rest of this question
         self.versions: dict[str, str] = {}
@@ -337,7 +341,11 @@ class Orchestrator:
                 context["column_descriptions"] = notes
         if profile:
             context["profile"] = profiling.compact(profile)
-        source = SourceInfo(table=table.full_name, updated_at=table.updated_at, kind=record.kind if record else "shared",
+        policy = self.registry.freshness.get(name)
+        updated_at = table.updated_at
+        if policy and policy.table:  # a view: the data's age is the gold table's last commit
+            updated_at = await asyncio.to_thread(freshness.last_commit, policy.table, self.data.execute) or updated_at
+        source = SourceInfo(table=table.full_name, updated_at=updated_at, sla_s=policy.sla_s if policy else None, kind=record.kind if record else "shared",
                             row_count=profile.row_count if profile else None, date_range=profile.date_range if profile else None,
                             warnings=(profile.warnings if profile else []) + (record.warnings if record else []),
                             expires_at=record.expires_at if record else None)
@@ -428,23 +436,44 @@ class Orchestrator:
         self.budget.max_sql += len(cfg.council_endpoints)
         authors = {e for e, *_ in seeds}
         drafters = [e for e in cfg.council_endpoints if e not in authors]
-        plans = await asyncio.gather(*(self._call("council", "council_plan", prompts.ANALYST_PLAN, self._user(context, question), AnalystPlan,
-                                                  cfg.analyst_max_out, endpoint=e) for e in drafters), return_exceptions=True)
-        candidates: list[tuple[CouncilCandidate, Execution | None, list[str]]] = [
-            (CouncilCandidate(label="", endpoint=e, status="executed", sql=sql, row_count=run.result.row_count), run, a) for e, sql, run, a in seeds]
-        for endpoint, plan in zip(drafters, plans):
-            if isinstance(plan, BaseException):
-                note = "unavailable" if isinstance(plan, ModelUnavailable) else "skipped: budget" if isinstance(plan, BudgetExhausted) else plain_error(plan)
-                candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="failed", note=str(note)[:200]), None, []))
-            elif plan.status != "READY" or not plan.sql:
-                candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="abstained", note=plan.status), None, []))
-            else:
-                try:
-                    guarded, run = await self._run_sql(plan.sql, allowed)
-                    candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="executed", sql=guarded.sql, row_count=run.result.row_count), run, plan.assumptions))
-                except (UnsafeSqlError, QueryError, BudgetExhausted) as exc:
-                    candidates.append((CouncilCandidate(label="", endpoint=endpoint, status="failed", sql=plan.sql, note=plain_error(exc)[:200]), None, []))
+        seeded: list[Ballot] = [(CouncilCandidate(label="", endpoint=e, status="executed", sql=sql, row_count=run.result.row_count), run, a)
+                                for e, sql, run, a in seeds]
 
+        async def draft(endpoint: str) -> Ballot:
+            return await self._council_draft(endpoint, context, question, allowed)
+
+        async def verify(drafts: list[Ballot]) -> tuple[Any, AskResponse | None]:
+            ordered = sorted(drafts, key=lambda d: drafters.index(d[0].endpoint))  # arrival order varies; ties favour the Analyst
+            return self._council_verify([*seeded, *ordered], trigger, state, question, mark)
+
+        async def judge(tally: Any) -> AskResponse:
+            return await self._council_judge(tally, context, state, question)
+
+        graph = council_graph.build(draft, verify, judge)
+        return (await graph.ainvoke({"endpoints": drafters, "drafts": []}))["response"]
+
+    async def _council_draft(self, endpoint: str, context: dict[str, Any], question: str, allowed: set[str]) -> Ballot:
+        """One member, independent of the others. Every failure becomes a candidate's status, never an exception."""
+        cfg = self.cfg
+        try:
+            plan = await asyncio.wait_for(self._call("council", "council_plan", prompts.ANALYST_PLAN, self._user(context, question), AnalystPlan,
+                                                     cfg.analyst_max_out, endpoint=endpoint), cfg.council_member_timeout_s)
+        except TimeoutError:
+            return CouncilCandidate(label="", endpoint=endpoint, status="failed", note="timed out"), None, []
+        except Exception as plan_error:
+            note = "unavailable" if isinstance(plan_error, ModelUnavailable) else "skipped: budget" if isinstance(plan_error, BudgetExhausted) else plain_error(plan_error)
+            return CouncilCandidate(label="", endpoint=endpoint, status="failed", note=str(note)[:200]), None, []
+        if plan.status != "READY" or not plan.sql:
+            return CouncilCandidate(label="", endpoint=endpoint, status="abstained", note=plan.status), None, []
+        try:
+            guarded, run = await self._run_sql(plan.sql, allowed)
+            return CouncilCandidate(label="", endpoint=endpoint, status="executed", sql=guarded.sql, row_count=run.result.row_count), run, plan.assumptions
+        except (UnsafeSqlError, QueryError, BudgetExhausted) as exc:
+            return CouncilCandidate(label="", endpoint=endpoint, status="failed", sql=plan.sql, note=plain_error(exc)[:200]), None, []
+
+    def _council_verify(self, candidates: list[Ballot], trigger: Literal["dispute", "requested"], state: ConversationState,
+                        question: str, mark: float) -> tuple[Any, AskResponse | None]:
+        """Group the executed results by value. Returns the tally for the judge, or a final answer when there's no quorum."""
         ran = [(c, run, a) for c, run, a in candidates if run is not None]
         groups: list[list[int]] = []  # indexes into ran whose values match
         for i, (_, run, _) in enumerate(ran):
@@ -468,7 +497,7 @@ class Orchestrator:
         self.council = CouncilInfo(trigger=trigger, agreement=agreement, candidates=[c for c, *_ in candidates])
         if not ran:
             self._event("council", "failed", mark, "no candidate query ran")
-            return self._unresolved(state, question, "No council member produced a query that ran.")
+            return None, self._unresolved(state, question, "No council member produced a query that ran.")
 
         order = list(range(len(ran)))
         random.shuffle(order)  # the judge sees candidates in random order under neutral labels
@@ -482,14 +511,19 @@ class Orchestrator:
             self._event("council", "succeeded", mark, f"{len(ran)} result(s), {agreement}: no value reproduced")
             reason = ("Only one model's query ran, so no other model reproduced its values." if agreement == "single" else
                       "The models' queries returned different values and no two agree, so I won't pick one.")
-            return self._unresolved(state, question, f"{reason} Each candidate's SQL is listed under Council; result {lead.label} is below.")
+            return None, self._unresolved(state, question, f"{reason} Each candidate's SQL is listed under Council; result {lead.label} is below.")
+        self._event("council", "succeeded", mark, f"{len(ran)} result(s), {agreement} agreement")
+        return (ran, groups, order, agreement, largest), None
+
+    async def _council_judge(self, tally: Any, context: dict[str, Any], state: ConversationState, question: str) -> AskResponse:
+        cfg = self.cfg
+        ran, groups, order, agreement, largest = tally
         leader = ran[groups[0][0]][0].endpoint
         judge = next((e for e in (cfg.adjudicator, *cfg.council_endpoints) if model_family(e) != model_family(leader)), cfg.adjudicator)
         self.council.judge = judge
         payload = {**context, "candidates": [{
             "label": ran[i][0].label, "sql": ran[i][0].sql, "result": json.loads(grounding.summary(ran[i][1].result, cfg.max_rows_to_model, max_chars=2500)),
             "same_values_as": [ran[j][0].label for j in groups[ran[i][0].group] if j != i]} for i in order]}
-        self._event("council", "succeeded", mark, f"{len(ran)} result(s), {agreement} agreement")
         self._running("adjudicate")
         mark = time.monotonic()
         try:
@@ -612,9 +646,13 @@ class Orchestrator:
             answer += f"\n\nNote: {'; '.join(coverage)}, so an empty result can mean the period asked about isn't in the data."
         stale = self._stale_sources()
         if stale:
-            detail = f"{', '.join(stale)} last updated more than {self.cfg.stale_after_hours}h ago; the refresh may have failed."
+            detail = f"{', '.join(stale)} is past its refresh target; the refresh may have failed."
             self.verification.checks.append(DeterministicCheck(name="freshness", status="warning", detail=detail))
             answer += f"\n\nNote: {detail}"
+        behind = self._behind_question(question)
+        if behind:
+            self.freshness_unmet = True
+            answer += f"\n\nNote: you asked for current figures, but {', '.join(behind)}."
         return self._finish("ANSWERED", state, question=question, answer=answer, answer_truncated=truncated,
                             hypotheses=self.proposal.hypotheses if self.proposal else [])
 
@@ -694,11 +732,20 @@ class Orchestrator:
                             web_sources=[WebSource(**s) for s in found["sources"] if s.get("url")])
 
     def _stale_sources(self) -> list[str]:
-        """Shared tables (uploads are fresh by definition) whose Unity Catalog update time is past the threshold."""
+        """Shared tables (uploads are fresh by definition) older than their SLA."""
         now = dt.datetime.now(dt.timezone.utc)
+        default = self.cfg.stale_after_hours * 3600
         return [f"{s.table.rsplit('.', 1)[-1]} ({s.updated_at[:16].replace('T', ' ')} UTC)" for s in self.sources
-                if s.kind == "shared" and s.updated_at
-                and now - dt.datetime.fromisoformat(s.updated_at) > dt.timedelta(hours=self.cfg.stale_after_hours)]
+                if s.kind == "shared" and s.updated_at and freshness.age_s(s.updated_at, now) > (s.sla_s or default)]
+
+    def _behind_question(self, question: str) -> list[str]:
+        """Sources whose latest data is older than the question needs ("today" against data that ends in 2017)."""
+        need = freshness.required_s(question)
+        if need is None:
+            return []
+        now = dt.datetime.now(dt.timezone.utc)
+        return [f"{s.table.rsplit('.', 1)[-1]} ends {s.date_range[1][:10]}" for s in self.sources
+                if s.kind == "shared" and s.date_range and freshness.age_s(s.date_range[1][:10], now) > need]
 
     def _queue_for_review(self, req: AskRequest, r: AskResponse) -> None:
         item = {"request_id": r.request_id, "user_key": self.user_key, "kind": r.kind, "status": r.status, "question": redact(req.question),
@@ -740,6 +787,7 @@ class Orchestrator:
             state.last_question = question or state.last_question
         self._event("complete", "succeeded", time.monotonic())
         return AskResponse(status=status, verification=v, auth=self.auth, state=state, events=self.events, sources=self.sources, council=self.council,
+                           data_as_of={s.table: s.date_range[1] for s in self.sources if s.date_range}, freshness_unmet=self.freshness_unmet,
                            result=preview, filters=filters, sql=self.proposal.sql if self.proposal else None,
                            query_id=self.proposal.query_id if self.proposal else None,
                            assumptions=fields.pop("assumptions", self.proposal.assumptions if self.proposal else []), **fields)

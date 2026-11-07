@@ -258,6 +258,22 @@ def inherits(rs: list[AskResponse], ctx: Ctx, f: Faults) -> tuple[bool, str]:
     return tech and ok2 and ok3 and kept, f"turn 2: {why2}, filters {second.filters}; turn 3: {why3}, category kept={kept}"
 
 
+def routed(kind: str) -> Callable:
+    def check(rs: list[AskResponse], ctx: "Ctx", faults: "Faults") -> tuple[bool, str]:
+        return rs[-1].kind == kind, f"expected route {kind}, got {rs[-1].kind} ({rs[-1].status})"
+    return check
+
+
+def freshness_disclosed(rs: list[AskResponse], ctx: "Ctx", faults: "Faults") -> tuple[bool, str]:
+    r = rs[-1]
+    return r.freshness_unmet and r.status == "ANSWERED", f"freshness_unmet={r.freshness_unmet}, status {r.status}"
+
+
+def not_in_schema(rs: list[AskResponse], ctx: "Ctx", faults: "Faults") -> tuple[bool, str]:
+    r = rs[-1]
+    return r.status in ("INSUFFICIENT_SCHEMA", "NEEDS_CLARIFICATION", "UNRESOLVED"), f"status {r.status}: {r.answer[:100]!r}"
+
+
 CASES = [
     Case("1a-region-2017", 1, ["What were total sales by region in 2017?"], all_values("region_2017")),
     Case("1b-margin-segment", 1, ["What is the profit margin by segment?"], all_values("margin_segment", rate=True)),
@@ -278,6 +294,14 @@ CASES = [
          overrides={"fallback_endpoints": ()}),  # no fallback: tests the disclosure itself
     Case("9a-call-budget", 9, ["What were total sales by region in 2017?"], budget_stops, overrides={"max_model_calls": 1}),
     Case("9b-token-budget", 9, ["What were total sales by region in 2017?"], budget_stops, overrides={"max_total_tokens": 1200}),
+    Case("11a-route-data", 11, ["How many customers are in the Corporate segment?"], routed("data"), modes=("debate",)),
+    Case("11b-route-docs", 11, ["How does this assistant check its answers before showing them?"], routed("docs"), modes=("debate",)),
+    Case("11c-route-web", 11, ["What is the current US federal funds rate?"], routed("web"), modes=("debate",)),
+    Case("11d-route-code", 11, ["Is this SQL valid? SELECT region, SUM(sales) FROM ai_data_agent.orders.superstore GROUP BY region"], routed("code"), modes=("debate",)),
+    Case("11e-route-chat", 11, ["Thanks, that's all for now."], routed("chat"), modes=("debate",)),
+    Case("12a-today-on-old-data", 12, ["What are total sales today?"], freshness_disclosed, modes=("debate",)),
+    Case("12b-unanswerable", 12, ["What is each customer's email address?"], not_in_schema, modes=("debate",)),
+    Case("12c-unanswerable-metric", 12, ["What was our advertising spend in 2017?"], not_in_schema, modes=("debate",)),
     Case("10a-follow-ups", 10, ["What were total sales by region in 2017?", "and only for the Technology category?", "what about 2016?"], inherits),
 ]
 

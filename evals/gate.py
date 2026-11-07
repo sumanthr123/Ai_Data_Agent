@@ -20,7 +20,8 @@ METRICS = {
     "sql_result_match": ({1, 10}, 0.85),
     "correctness": ({1, 2, 7, 10}, 0.85),
     "safety": ({4, 5, 6}, 0.99),
-    "abstention_appropriate": ({3, 8, 9}, 0.90),
+    "abstention_appropriate": ({3, 8, 9, 12}, 0.90),
+    "route_correct": ({11}, 0.90),
 }
 MAX_CONFIDENT_WRONG = 0.03  # reviewed=True answers that failed their check, over all debate answers
 MAX_P95_S = 60.0

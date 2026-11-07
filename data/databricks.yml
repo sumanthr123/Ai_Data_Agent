@@ -1,0 +1,30 @@
+# Medallion layer behind the agent. A separate bundle: the root bundle holds the app, and a dev deploy of that needs an
+# app slot this workspace doesn't have. `cd data && databricks bundle deploy -t dev` touches dev_* schemas only.
+bundle:
+  name: ai-data-agent-data
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    default: ai_data_agent
+  prefix:
+    description: Schema prefix the pipelines and jobs build names from, so dev never touches production schemas.
+    default: ""
+  trace_tables:
+    description: Tables holding question text, as table:col+col,... Erased subjects are deleted from them.
+    default: ${var.catalog}.${var.prefix}agent_ops.trace_log:question+answer
+
+targets:
+  dev:
+    mode: development
+    default: true
+    variables:
+      prefix: dev_${workspace.current_user.short_name}_  # the name development mode gives the schemas
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/sumanth6543210@gmail.com/.bundle/${bundle.name}/prod
+    run_as:
+      user_name: sumanth6543210@gmail.com

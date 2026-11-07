@@ -196,7 +196,7 @@ class CoverageTests(unittest.TestCase):
         r, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, data=data)
         self.assertEqual(r.status, "ANSWERED")
         self.assertTrue(r.verification.reviewed)
-        self.assertIn("superstore (2026-01-01 06:00 UTC) last updated more than 36h ago", r.answer)
+        self.assertIn("superstore (2026-01-01 06:00 UTC) is past its refresh target", r.answer)
         self.assertEqual([c.status for c in r.verification.checks if c.name == "freshness"], ["warning"])
 
     def test_fresh_table_has_no_freshness_note(self):

@@ -44,7 +44,7 @@ export interface ResultPreview {
   from_cache: boolean; statement_id: string | null; runtime_ms: number
 }
 export interface SourceInfo {
-  table: string; updated_at: string | null; kind: 'shared' | 'upload'; row_count: number | null
+  table: string; updated_at: string | null; sla_s?: number | null; kind: 'shared' | 'upload'; row_count: number | null
   date_range: string[] | null; warnings: string[]; expires_at: string | null
 }
 export type AskStatus = 'ANSWERED' | 'NEEDS_CLARIFICATION' | 'INSUFFICIENT_SCHEMA' | 'UNRESOLVED' | 'BUDGET_EXHAUSTED' | 'ERROR'
@@ -56,7 +56,7 @@ export interface CouncilInfo {
 export interface DocSource { n: number; file: string; section: string; excerpt: string }
 export interface CodeInfo { language: 'sql' | 'python' | 'other'; code: string; validation: 'validated' | 'syntax_ok' | 'not_run' | 'failed' | 'untested'; detail: string; destructive: boolean }
 export interface AskResponse {
-  request_id?: string; from_cache?: boolean
+  request_id?: string; from_cache?: boolean; data_as_of?: Record<string, string>; freshness_unmet?: boolean
   kind: 'data' | 'web' | 'docs' | 'code' | 'chat'
   status: AskStatus; answer: string; answer_truncated: boolean; clarifying_question: string | null; hypotheses: string[]
   assumptions: string[]; query_id: string | null; sql: string | null; filters: string[]; result: ResultPreview | null

@@ -56,6 +56,8 @@ class AskSettings:
     adjudicator: str = os.getenv("ADJUDICATOR_MODEL_ENDPOINT", "databricks-qwen35-122b-a10b")
     # Tier 2 council: members draft SQL independently; the judge rotates to a family that didn't author the leading result.
     council_endpoints: tuple[str, ...] = tuple(e.strip() for e in os.getenv("COUNCIL_ENDPOINTS", "databricks-gpt-oss-120b,databricks-llama-4-maverick").split(",") if e.strip())
+    # A member slower than this is a failed vote; the others still count.
+    council_member_timeout_s: int = _int("COUNCIL_MEMBER_TIMEOUT_S", 60)
     # Tried once when the Analyst or Reviewer endpoint fails; never the same family as the other role.
     # Models the user may pick to answer (the Analyst); "Auto" uses ANALYST_MODEL_ENDPOINT.
     model_choices: tuple[str, ...] = tuple(e.strip() for e in os.getenv("MODEL_CHOICES", "databricks-gpt-oss-120b,databricks-llama-4-maverick,"

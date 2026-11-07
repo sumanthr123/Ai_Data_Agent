@@ -1,0 +1,27 @@
+resources:
+  jobs:
+    orders_refresh:
+      name: ai-data-agent-orders-refresh
+      tasks:
+        - task_key: pipeline
+          pipeline_task: {pipeline_id: "${resources.pipelines.orders_medallion.id}"}
+        - task_key: agent_gold
+          depends_on: [{task_key: pipeline}]
+          spark_python_task:
+            python_file: ../jobs/publish_agent_gold.py
+            parameters: ["${var.catalog}", "${var.prefix}"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: {client: "4"}
+    gdpr_delete:
+      name: ai-data-agent-gdpr-delete
+      tasks:
+        - task_key: delete_subjects
+          spark_python_task:
+            python_file: ../jobs/gdpr.py
+            parameters: ["${var.catalog}", "${var.prefix}", "${resources.pipelines.orders_medallion.id}", "${var.trace_tables}"]
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec: {client: "4"}
