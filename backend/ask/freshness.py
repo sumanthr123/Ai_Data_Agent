@@ -1,4 +1,4 @@
-"""Freshness per gold table: last commit from DESCRIBE HISTORY (60 s cache), and what a question needs."""
+"""Freshness per gold table: when it last refreshed (60 s cache), and what a question needs."""
 
 from __future__ import annotations
 
@@ -23,15 +23,23 @@ class Policy:
     table: str | None = None  # the gold table behind a view; a view's own UC update time doesn't follow the data
 
 
+def _refreshed(table: str, execute: Callable[[str], Any]) -> str | None:
+    """Materialized views have no DESCRIBE HISTORY, and a refresh that found no new data adds no commit yet is still fresh."""
+    for row in execute(f"DESCRIBE EXTENDED {table}").result.rows:
+        if row.get("col_name") == "Last Refreshed" and row.get("data_type"):
+            return str(row["data_type"])
+    rows = execute(f"DESCRIBE HISTORY {table} LIMIT 1").result.rows
+    return str(rows[0]["timestamp"]).replace(" ", "T") if rows else None
+
+
 def last_commit(table: str, execute: Callable[[str], Any]) -> str | None:
-    """ISO time of the table's last commit, or None when history can't be read. Never blocks an answer."""
+    """ISO time the table last refreshed, or None when it can't be read. Never blocks an answer."""
     with _lock:
         hit = _cache.get(table)
     if hit and time.monotonic() - hit[0] < CACHE_S:
         return hit[1]
     try:
-        rows = execute(f"DESCRIBE HISTORY {table} LIMIT 1").result.rows
-        ts = str(rows[0]["timestamp"]).replace(" ", "T") if rows else None
+        ts = _refreshed(table, execute)
     except Exception:
         ts = None
     with _lock:

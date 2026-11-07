@@ -48,12 +48,20 @@ class FreshnessTests(unittest.TestCase):
     def setUp(self):
         freshness._cache.clear()
 
-    def test_last_commit_is_cached_for_a_minute(self):
-        rows = analysis.shape(["timestamp"], ["TIMESTAMP"], [{"timestamp": "2026-11-06 06:00:00"}], False)
-        execute = unittest.mock.Mock(return_value=Execution(rows, "s", 1))
+    def test_table_uses_history_and_is_cached_for_a_minute(self):
+        details = analysis.shape(["col_name", "data_type"], ["STRING", "STRING"], [{"col_name": "Type", "data_type": "MANAGED"}], False)
+        history = analysis.shape(["timestamp"], ["TIMESTAMP"], [{"timestamp": "2026-11-06 06:00:00"}], False)
+        execute = unittest.mock.Mock(side_effect=[Execution(details, "s", 1), Execution(history, "s", 1)])
         self.assertEqual(freshness.last_commit("g.t", execute), "2026-11-06T06:00:00")
         freshness.last_commit("g.t", execute)
+        self.assertEqual(execute.call_count, 2)
+
+    def test_materialized_view_uses_last_refreshed(self):
+        rows = [{"col_name": "Type", "data_type": "MATERIALIZED_VIEW"}, {"col_name": "Last Refreshed", "data_type": "2026-11-07T13:21:32Z"}]
+        execute = unittest.mock.Mock(return_value=Execution(analysis.shape(["col_name", "data_type"], ["STRING", "STRING"], rows, False), "s", 1))
+        self.assertEqual(freshness.last_commit("g.mv", execute), "2026-11-07T13:21:32Z")
         execute.assert_called_once()
+        self.assertGreater(freshness.age_s("2026-11-07T13:21:32Z", dt.datetime(2026, 11, 7, 14, tzinfo=dt.timezone.utc)), 0)
 
     def test_unreadable_history_never_raises(self):
         self.assertIsNone(freshness.last_commit("g.mv", unittest.mock.Mock(side_effect=QueryError("nope"))))
