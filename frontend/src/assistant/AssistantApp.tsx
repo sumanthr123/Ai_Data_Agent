@@ -169,8 +169,9 @@ export default function AssistantApp() {
   }, [])
 
   const visible = new Set(datasets.map((d) => d.dataset))
-  const selected = (a.active?.datasets ?? defaults).filter((d) => visible.has(d))
-  const usable = selected.length ? selected : defaults.length ? defaults : undefined  // undefined until the list loads
+  const saved = (a.active?.datasets ?? defaults).filter((d) => visible.has(d))
+  const selected = saved.length ? saved : defaults  // a saved chat whose datasets are gone continues on the default
+  const usable = selected.length ? selected : undefined  // undefined until the list loads
   const turns = a.active?.turns ?? []
   const evidenceTurn = turns.find((t) => t.id === evidenceId) ?? [...turns].reverse().find((t) => t.response) ?? null
 
