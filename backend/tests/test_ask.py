@@ -252,7 +252,7 @@ class ResilienceTests(unittest.TestCase):
         self.assertEqual(c._chat.call_count, 2)
 
     def test_sustained_throttling_fails_inside_the_sdk_window_and_opens_the_breaker(self):
-        import http.server, threading, time
+        import http.server, socket, threading, time
         from backend.ask import models as m
         from backend.ask.text import plain_error
 
