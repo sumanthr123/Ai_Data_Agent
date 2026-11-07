@@ -64,3 +64,22 @@ targets:
   dev:
     mode: development
     default: true
+
+  # Production is the existing app `ai-data-agent`, deployed today with `databricks apps deploy` (README). Before the first
+  # `bundle deploy -t prod`, bind it once: databricks bundle deployment bind consensus_agent ai-data-agent -t prod
+  # (that hands the app's config to this file; get approval first, it is a production change).
+  prod:
+    mode: production
+    git:
+      branch: main
+    workspace:
+      root_path: /Workspace/Users/sumanth6543210@gmail.com/.bundle/${bundle.name}/prod
+    run_as:
+      user_name: sumanth6543210@gmail.com
+    permissions:
+      - user_name: sumanth6543210@gmail.com
+        level: CAN_MANAGE
+    resources:
+      apps:
+        consensus_agent:
+          name: ai-data-agent

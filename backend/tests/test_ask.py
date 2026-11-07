@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import datetime as dt
 import json
 import unittest
 import unittest.mock
@@ -54,13 +55,14 @@ class FakeData:
         self.executed: list[str] = []
         self.profiled: list[str] = []
         self.described = 0
+        self.updated_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
     def describe(self, names: list[str]) -> list[TableInfo]:
         self.described += 1
         if any(n != TABLE for n in names):
             raise PermissionError("no access")
         return [TableInfo(TABLE, [ColumnNode(name=c, type=t) for c, t in
-                                  (("region", "string"), ("sales", "double"), ("order_date", "date"), ("postal_code", "string"))], "2026-11-01T00:00:00+00:00")]
+                                  (("region", "string"), ("sales", "double"), ("order_date", "date"), ("postal_code", "string"))], self.updated_at)]
 
     def execute(self, sql: str) -> Execution:
         if sql.startswith("SELECT COUNT(*) AS n, COUNT("):
@@ -188,6 +190,20 @@ class CoverageTests(unittest.TestCase):
             del ROWS[empty]
         self.assertIn("covers 2014-01-03 to 2017-12-30", r.answer)
 
+    def test_stale_table_is_flagged_but_not_vetoed(self):
+        data = FakeData()
+        data.updated_at = "2026-01-01T06:00:00+00:00"
+        r, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, data=data)
+        self.assertEqual(r.status, "ANSWERED")
+        self.assertTrue(r.verification.reviewed)
+        self.assertIn("superstore (2026-01-01 06:00 UTC) last updated more than 36h ago", r.answer)
+        self.assertEqual([c.status for c in r.verification.checks if c.name == "freshness"], ["warning"])
+
+    def test_fresh_table_has_no_freshness_note(self):
+        r, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]})
+        self.assertNotIn("last updated", r.answer)
+        self.assertFalse([c for c in r.verification.checks if c.name == "freshness"])
+
 
 class FallbackTests(unittest.TestCase):
     FB = dataclasses.replace(CFG, fallback_endpoints=("databricks-gpt-oss-20b", "databricks-qwen35-122b-a10b"))
@@ -255,7 +271,10 @@ class SqlGuardTests(unittest.TestCase):
         for sql in ("DROP TABLE ai_data_agent.orders.superstore", f"DELETE FROM {TABLE}", "SELECT * FROM system.access.audit",
                     "SELECT * FROM read_files('/Volumes/x/y/z')", "SELECT * FROM delta.`/tmp/x`", "SELECT * FROM superstore",
                     "SELECT * FROM ai_data_agent.orders.other", f"SELECT ai_query('m', region) FROM {TABLE}",
-                    f"SELECT secret('scope', 'key') FROM {TABLE}", f"SELECT * FROM {TABLE}; SELECT 1"):
+                    f"SELECT secret('scope', 'key') FROM {TABLE}", f"SELECT * FROM {TABLE}; SELECT 1",
+                    f"SELECT * FROM {TABLE} -- harmless\n; DROP TABLE {TABLE}", f"SELECT * FROM {TABLE} /* ; */; DELETE FROM {TABLE}",
+                    f"INSERT INTO {TABLE} SELECT * FROM {TABLE}", f"MERGE INTO {TABLE} t USING {TABLE} s ON 1=1 WHEN MATCHED THEN DELETE",
+                    f"SET spark.sql.ansi.enabled = false", f"WITH x AS (SELECT 1) UPDATE {TABLE} SET sales = 0"):
             with self.subTest(sql=sql), self.assertRaises(UnsafeSqlError):
                 sql_guard.guard(sql, {TABLE})
 
@@ -363,15 +382,15 @@ class OrchestratorTests(unittest.TestCase):
         self.assertNotIn("gemini", judge_prompt)  # candidates are anonymous to the judge
         self.assertNotIn("gpt-oss", judge_prompt)
 
-    def test_council_conflict_is_shown_not_hidden(self):
-        verdict = {"choice": "B", "final_answer": "West had $725,457.82 across all years.", "rationale": "The question has no period.",
-                   "disagreement": "A filters to 2017; B covers all years."}
+    def test_contradictory_council_results_abstain_without_a_judge(self):
         with unittest.mock.patch("random.shuffle"):
-            r, _, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED, {**PLAN, "sql": FIX}], CFG.adjudicator: [verdict]})
-        self.assertEqual((r.status, r.council.agreement, r.council.chosen), ("ANSWERED", "conflict", "B"))
-        self.assertFalse(r.verification.reviewed)  # nobody reproduced the chosen values
-        self.assertEqual(r.council.disagreement, "A filters to 2017; B covers all years.")
-        self.assertEqual(r.sql, FIX)
+            r, models, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED, {**PLAN, "sql": FIX}]})
+        self.assertEqual((r.status, r.council.agreement, r.council.chosen, r.council.judge), ("UNRESOLVED", "conflict", None, ""))
+        self.assertFalse(r.verification.reviewed)
+        self.assertEqual(r.verification.adjudicator, "UNRESOLVED")
+        self.assertNotIn(CFG.adjudicator, [e for e, _ in models.seen])  # no judge call: it couldn't be shown anyway
+        self.assertIn("no two agree", r.answer)
+        self.assertIn("250,128.35", r.answer)  # the evidence is shown
 
     def test_judge_answer_must_be_grounded(self):
         made_up = {"choice": "A", "final_answer": "West had $123,456.00.", "rationale": "", "disagreement": None}
@@ -379,14 +398,52 @@ class OrchestratorTests(unittest.TestCase):
             r, _, _ = run({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED, PLAN], CFG.adjudicator: [made_up]})
         self.assertEqual(r.status, "UNRESOLVED")
 
-    def test_council_on_request_skips_tier_one_and_notes_unavailable_members(self):
-        verdict = {"choice": "A", "final_answer": GOOD["draft_answer"], "rationale": "", "disagreement": None}
+    def test_council_on_request_with_one_model_left_abstains(self):
         with unittest.mock.patch("random.shuffle"):
-            r, models, _ = run({CFG.analyst: [PLAN], CFG.reviewer: [RuntimeError("down")], CFG.adjudicator: [verdict]}, council=True)
-        self.assertEqual((r.status, r.council.trigger, r.council.agreement), ("ANSWERED", "requested", "single"))
-        self.assertFalse(r.verification.reviewed)  # a single result is lower confidence
+            r, models, _ = run({CFG.analyst: [PLAN], CFG.reviewer: [RuntimeError("down")]}, council=True)
+        self.assertEqual((r.status, r.council.trigger, r.council.agreement), ("UNRESOLVED", "requested", "single"))
+        self.assertFalse(r.verification.reviewed)
         self.assertIn("unavailable", r.verification.degraded_reasons[0])
-        self.assertEqual([c.purpose for c in r.verification.calls if c.status == "ok"], ["plan", "judge"])
+        self.assertEqual([c.purpose for c in r.verification.calls if c.status == "ok"], ["plan"])
+        self.assertEqual(r.sql, SQL)
+        self.assertIn("250,128.35", r.answer)
+
+    def test_abstained_answer_is_queued_for_review(self):
+        queued = []
+        models, data = FakeModels({CFG.analyst: [PLAN, GOOD, GOOD], CFG.reviewer: [REJECTED, REJECTED, {**PLAN, "sql": FIX}]}), FakeData()
+        orch = Orchestrator(CFG, data, models, AuthContext(mode="service_principal"), "sp", ResultCache(60), Tracer(""), review=queued.append)
+        r = asyncio.run(orch.run(AskRequest(question="Sales by region for bob@example.com?", state=ConversationState())))
+        self.assertEqual(r.status, "UNRESOLVED")
+        self.assertEqual(len(queued), 1)
+        item = queued[0]
+        self.assertEqual((item["request_id"], item["status"]), (r.request_id, "UNRESOLVED"))
+        self.assertIn("[email]", item["question"])  # PII redacted before it's stored
+        self.assertLessEqual({0, 1}, {c["group"] for c in item["detail"]["candidates"]})
+
+    def test_answered_question_is_not_queued(self):
+        queued = []
+        orch = Orchestrator(CFG, FakeData(), FakeModels({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}), AuthContext(mode="service_principal"),
+                            "sp", ResultCache(60), Tracer(""), review=queued.append)
+        self.assertEqual(asyncio.run(orch.run(AskRequest(question="Sales by region in 2017?", state=ConversationState()))).status, "ANSWERED")
+        self.assertEqual(queued, [])
+
+    def test_review_queue_writes_parameters_not_text(self):
+        from backend.ask.review_queue import ReviewQueue
+        calls = []
+        q = ReviewQueue("c.s.review_queue", lambda sql, p: calls.append((sql, p)))
+        q._write({"request_id": "r1", "question": "x'); DROP TABLE t; --", "detail": {"a": 1}})
+        q._write({"request_id": "r2"})
+        self.assertEqual(sum("CREATE TABLE" in sql for sql, _ in calls), 1)
+        insert, params = calls[1]
+        self.assertNotIn("DROP", insert)
+        self.assertEqual((params["question"], params["detail"]), ("x'); DROP TABLE t; --", '{"a": 1}'))
+
+    def test_review_queue_failure_is_swallowed(self):
+        from backend.ask.review_queue import ReviewQueue
+        def down(*_):
+            raise RuntimeError("warehouse stopped")
+        with self.assertLogs("ask", "WARNING"):
+            ReviewQueue("c.s.q", down)._write({"request_id": "r"})
 
     def test_failed_sql_is_fixed_within_attempt_limit(self):
         broken = {**PLAN, "sql": f"SELECT regionn FROM {TABLE}"}

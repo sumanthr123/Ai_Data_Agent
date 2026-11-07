@@ -14,7 +14,10 @@ assistant. Design and measurements: ARCHITECTURE.md.
    can veto; at most one correction.
 4. Tier 2 council (`Orchestrator._council`): on a dispute after the correction, or `council: true` ("Verify with
    council"). Independent SQL drafts from `COUNCIL_ENDPOINTS`, all run read-only, grouped by value
-   (`backend/services/compare.py`), judged anonymously by a family that didn't author the leading result.
+   (`backend/services/compare.py`), judged anonymously by a family that didn't author the leading result. Quorum: one
+   model's queries are one vote; if no two models agree (or one is left) it abstains without a judge (`UNRESOLVED`).
+5. Abstained data answers go to the review queue (`review_queue.py`, table written as the app, off the request path).
+   Shared tables older than `STALE_AFTER_HOURS` get a `freshness` warning.
 
 `verification.reviewed` is true only when an independent model approved (or reproduced the values) and every
 deterministic check passed. Budgets (calls, tokens incl. reasoning, SQL attempts) are enforced in `budget.py` before
@@ -35,6 +38,7 @@ correctness; there's no confidence %.
 .venv/bin/python -m unittest discover -s backend/tests -t .   # fake models, warehouse and search
 cd frontend && node --test src/lib/markdown.test.ts src/assistant/format.test.ts
 DATABRICKS_CONFIG_PROFILE=<profile> DATABRICKS_WAREHOUSE_ID=<id> .venv/bin/python -m evals.run_evals   # live
+.venv/bin/python -m evals.gate --runs 3                                                                # release thresholds
 ```
 
 ## Commands

@@ -79,6 +79,10 @@ class AskSettings:
     statement_byte_limit: int = _int("STATEMENT_BYTE_LIMIT", 16 * 1024 * 1024)
     model_timeout_s: int = _int("ASK_MODEL_TIMEOUT_S", 60)
     cache_ttl_s: int = _int("RESULT_CACHE_TTL_S", 300)
+    # Shared tables refresh daily; older than this, answers say the data may be stale.
+    stale_after_hours: int = _int("STALE_AFTER_HOURS", 36)
+    # Abstained data answers are written here (in the upload schema, as the app) for a person to resolve; "" turns it off.
+    review_queue: str = os.getenv("REVIEW_QUEUE_TABLE", "review_queue")
     # Output tokens each role may use (reasoning models spend part of this thinking).
     analyst_max_out: int = _int("ANALYST_MAX_OUTPUT_TOKENS", 3000)
     reviewer_max_out: int = _int("REVIEWER_MAX_OUTPUT_TOKENS", 2500)
@@ -96,6 +100,10 @@ class AskSettings:
     @property
     def registry_table(self) -> str:
         return f"{self.catalog}.{self.upload_schema}.dataset_registry"
+
+    @property
+    def review_queue_table(self) -> str:
+        return f"{self.catalog}.{self.upload_schema}.{self.review_queue}" if self.review_queue else ""
 
     def efforts(self) -> dict[str, str]:
         return {e: v for e, v in ((self.analyst, self.analyst_effort), (self.reviewer, self.reviewer_effort),

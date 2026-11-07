@@ -24,6 +24,7 @@ from backend.ask.ingest import IngestionService, UploadRejected, user_key
 from backend.ask.models import ServingClient
 from backend.ask.orchestrator import DatabricksData, Orchestrator
 from backend.ask.registry import Registry
+from backend.ask.review_queue import ReviewQueue
 from backend.ask.settings import ConfigError, ask_settings, model_family
 from backend.ask.tracing import Tracer
 from backend.ask.warehouse import Execution, QueryError, execute
@@ -59,6 +60,11 @@ def _app_client() -> WorkspaceClient:
 @lru_cache(maxsize=1)
 def registry() -> Registry:
     return Registry(ask_settings, _app_run)
+
+
+@lru_cache(maxsize=1)
+def review_queue() -> ReviewQueue:
+    return ReviewQueue(ask_settings.review_queue_table, _app_run)
 
 
 def ingestion() -> IngestionService:
@@ -115,7 +121,7 @@ def _orchestrator(request: Request, cancelled: threading.Event, on_event=None) -
     # Models are called as the app (users don't need endpoint access); data is read with the caller's credentials.
     return Orchestrator(ask_settings, DatabricksData(data_w, ask_settings, cancelled), ServingClient(_app_client(), ask_settings.efforts()),
                         auth, auth_key(token), _cache, _tracer, cancelled, registry=registry(), user_key=user_key(_principal(request)),
-                        on_event=on_event)
+                        on_event=on_event, review=review_queue().put if ask_settings.review_queue_table else None)
 
 
 def _check_model(body: AskRequest) -> None:

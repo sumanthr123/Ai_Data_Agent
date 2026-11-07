@@ -35,7 +35,7 @@ from backend.ask.contracts import (
 from backend.ask.models import ModelClient
 from backend.ask.registry import Registry
 from backend.ask.settings import AskSettings, model_family
-from backend.ask.tracing import Tracer
+from backend.ask.tracing import Tracer, redact
 from backend.ask.warehouse import Execution, QueryError, execute
 from backend.schemas import ColumnNode
 from backend.services import web_search
@@ -111,11 +111,11 @@ class Orchestrator:
     def __init__(self, cfg: AskSettings, data: DataAccess, llm: ModelClient, auth: AuthContext, auth_key: str,
                  cache: ResultCache, tracer: Tracer, cancelled: threading.Event | None = None, registry: Registry | None = None,
                  user_key: str = "local-user", on_event: Callable[[StageEvent], None] | None = None,
-                 search: Callable[[str], dict[str, Any]] = web_search.search) -> None:
+                 search: Callable[[str], dict[str, Any]] = web_search.search, review: Callable[[dict[str, Any]], None] | None = None) -> None:
         self.cfg, self.data, self.llm, self.auth, self.auth_key, self.cache, self.tracer = cfg, data, llm, auth, auth_key, cache, tracer
         self.cancelled = cancelled or threading.Event()
         self.registry, self.user_key = registry or Registry(cfg, None), user_key
-        self.on_event, self.search = on_event, search
+        self.on_event, self.search, self.review = on_event, search, review
         self.meta: dict[str, list[ColumnNode]] = {}
         self.join_checks: list[DeterministicCheck] = []
         self.budget = Budget(cfg.max_model_calls, cfg.max_total_tokens, cfg.max_sql_attempts)
@@ -147,6 +147,8 @@ class Orchestrator:
             if self.answer_key and not response.from_cache and response.status == "ANSWERED" and response.kind in CACHEABLE:
                 self.cache.put(self.answer_key, response.model_copy(deep=True))
             response.request_id = rid
+            if response.status == "UNRESOLVED" and response.kind == "data" and not response.from_cache:
+                self._queue_for_review(req, response)
             v = response.verification
             logger.info("ask %s", json.dumps({"kind": response.kind, "status": response.status, "reviewed": v.reviewed, "tokens": v.total_tokens,
                                               "calls": v.total_model_calls, "sql": v.sql_attempts, "ms": response.total_ms, "cached": response.from_cache,
@@ -449,12 +451,17 @@ class Orchestrator:
             # Same values on the measures both returned (extra columns or percent vs fraction still agree).
             home = next((g for g in groups if compare_pair(ran[g[0]][1].result, run.result).relation in AGREE), None)
             home.append(i) if home is not None else groups.append([i])
-        groups.sort(key=len, reverse=True)  # stable: ties keep the earliest (Analyst-first) group in front
+
+        def models_in(g: list[int]) -> int:  # one model's two queries (draft and redraft) are one vote
+            return len({ran[i][0].endpoint for i in g})
+
+        groups.sort(key=models_in, reverse=True)  # stable: ties keep the earliest (Analyst-first) group in front
         for n, g in enumerate(groups):
             for i in g:
                 ran[i][0].group = n
-        largest = len(groups[0]) if groups else 0
-        agreement = "single" if len(ran) <= 1 else "full" if largest == len(ran) else "partial" if largest >= 2 else "conflict"
+        largest = models_in(groups[0]) if groups else 0
+        voters = models_in(list(range(len(ran))))
+        agreement = "single" if voters <= 1 else "full" if len(groups) == 1 else "partial" if largest >= 2 else "conflict"
         unavailable = [c.endpoint for c, run, _ in candidates if c.status == "failed" and run is None and c.sql is None]
         if unavailable:
             self.verification.degraded_reasons.append(f"Council member(s) unavailable: {', '.join(unavailable)}")
@@ -467,6 +474,15 @@ class Orchestrator:
         random.shuffle(order)  # the judge sees candidates in random order under neutral labels
         for label, i in zip("ABCDEFGH", order):
             ran[i][0].label = label
+        if largest < 2:  # quorum: with one model left, or no two models agreeing, nothing reproduced a value; don't pick one
+            self.verification.adjudicator = "UNRESOLVED"
+            lead, lead_run, lead_assumptions = ran[groups[0][0]]
+            self.proposal = ProposalPayload(query_id=uuid.uuid4().hex[:12], sql=lead.sql or "", assumptions=lead_assumptions, draft_answer="")
+            self.execution = lead_run
+            self._event("council", "succeeded", mark, f"{len(ran)} result(s), {agreement}: no value reproduced")
+            reason = ("Only one model's query ran, so no other model reproduced its values." if agreement == "single" else
+                      "The models' queries returned different values and no two agree, so I won't pick one.")
+            return self._unresolved(state, question, f"{reason} Each candidate's SQL is listed under Council; result {lead.label} is below.")
         leader = ran[groups[0][0]][0].endpoint
         judge = next((e for e in (cfg.adjudicator, *cfg.council_endpoints) if model_family(e) != model_family(leader)), cfg.adjudicator)
         self.council.judge = judge
@@ -594,6 +610,11 @@ class Orchestrator:
         coverage = [f"{s.table.rsplit('.', 1)[-1]} covers {s.date_range[0]} to {s.date_range[1]}" for s in self.sources if s.date_range]
         if self.execution and self.execution.result.row_count == 0 and coverage:  # "no rows" vs "period not in the data"
             answer += f"\n\nNote: {'; '.join(coverage)}, so an empty result can mean the period asked about isn't in the data."
+        stale = self._stale_sources()
+        if stale:
+            detail = f"{', '.join(stale)} last updated more than {self.cfg.stale_after_hours}h ago; the refresh may have failed."
+            self.verification.checks.append(DeterministicCheck(name="freshness", status="warning", detail=detail))
+            answer += f"\n\nNote: {detail}"
         return self._finish("ANSWERED", state, question=question, answer=answer, answer_truncated=truncated,
                             hypotheses=self.proposal.hypotheses if self.proposal else [])
 
@@ -671,6 +692,22 @@ class Orchestrator:
         self._event("web_search", "succeeded", mark, f"{len(found['sources'])} source(s)")
         return self._finish("ANSWERED", state, question=question, kind="web", answer=answer, answer_truncated=truncated,
                             web_sources=[WebSource(**s) for s in found["sources"] if s.get("url")])
+
+    def _stale_sources(self) -> list[str]:
+        """Shared tables (uploads are fresh by definition) whose Unity Catalog update time is past the threshold."""
+        now = dt.datetime.now(dt.timezone.utc)
+        return [f"{s.table.rsplit('.', 1)[-1]} ({s.updated_at[:16].replace('T', ' ')} UTC)" for s in self.sources
+                if s.kind == "shared" and s.updated_at
+                and now - dt.datetime.fromisoformat(s.updated_at) > dt.timedelta(hours=self.cfg.stale_after_hours)]
+
+    def _queue_for_review(self, req: AskRequest, r: AskResponse) -> None:
+        item = {"request_id": r.request_id, "user_key": self.user_key, "kind": r.kind, "status": r.status, "question": redact(req.question),
+                "reason": redact(r.answer.split("\n\n", 1)[0]), "sql": r.sql,
+                "detail": {"candidates": [c.model_dump(include={"label", "endpoint", "status", "sql", "group", "note"}) for c in r.council.candidates]
+                           if r.council else [], "issues": [i.description for i in r.verification.open_issues]}}
+        logger.info("review_queue %s", json.dumps({k: item[k] for k in ("request_id", "status", "reason")}))
+        if self.review:
+            self.review(item)
 
     def _unresolved(self, state: ConversationState, question: str, reason: str) -> AskResponse:
         issues = "\n".join(f"- {i.description}" for i in self.verification.open_issues[:5])

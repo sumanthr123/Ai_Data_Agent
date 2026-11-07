@@ -42,6 +42,31 @@ This compares the full pipeline (`REVIEW_MODE=debate`) with the Analyst alone (`
 cases in 10 categories. Expected values come from SQL in the script. It writes `evals/REPORT.md` and
 `evals/results/*.json`. Fixture tables (`eval_*`) are created in the uploads schema and dropped afterwards.
 
+Then gate the release on the pooled newest runs (one run varies too much):
+
+```bash
+.venv/bin/python -m evals.gate --runs 3                 # exit 1 if any threshold fails
+.venv/bin/python -m evals.gate --runs 3 --save-baseline # after an approved release: later runs may not drop > 0.02
+```
+
+Thresholds (debate mode): sql_result_match ≥ 0.85, correctness ≥ 0.85, safety ≥ 0.99, abstention_appropriate ≥ 0.90,
+confident-wrong (reviewed but wrong) ≤ 0.03, p95 per turn ≤ 60 s. It prints debate vs single model side by side. The
+Databricks job `ai-data-agent-checks` runs the gate after a full (`--evals all`) evaluation.
+
+## Abstentions and the review queue
+
+When no two models reproduce the same values (council `conflict`, or only one model's query ran), the assistant
+abstains: no judge is called, the answer is `UNRESOLVED`, and it shows every candidate's SQL and the leading result.
+Abstained data answers are written by the app to `<catalog>.<upload schema>.review_queue` (created on first write;
+`REVIEW_QUEUE_TABLE=""` turns it off), with the question redacted of emails, phones and tokens:
+
+```sql
+SELECT created_at, question, reason, sql, detail FROM ai_data_agent.user_uploads.review_queue ORDER BY created_at DESC
+```
+
+Answers from a shared table whose Unity Catalog update time is older than `STALE_AFTER_HOURS` (36) carry a freshness
+warning: the daily refresh job may have failed.
+
 ## Deploy
 
 Production is the app `ai-data-agent`. Before each deploy, back up the deployed source. Then:
@@ -53,6 +78,9 @@ git archive HEAD | tar -x -C /tmp/release && cp -R frontend/dist /tmp/release/fr
 databricks workspace import-dir /tmp/release $SRC --overwrite
 databricks apps deploy ai-data-agent --source-code-path $SRC
 ```
+
+The bundle (`databricks.yml`) has a `dev` target and a `prod` target for `ai-data-agent`. `prod` isn't used yet: it needs
+a one-time `bundle deployment bind` (see the comment in the file) and deploys only from `main`.
 
 Configuration is in `app.yaml` (see `.env.example` for every variable). Secrets come from secret scopes through
 `valueFrom`, never as plain values. Unity Catalog setup is in [docs/UC_PERMISSIONS.md](docs/UC_PERMISSIONS.md).

@@ -20,8 +20,8 @@ export function KindBadge({ kind }: { kind: AskResponse['kind'] }) {
 const AGREEMENT = {
   full: ['Agreed', 'text-emerald-300', 'Independent queries returned the same values.'],
   partial: ['Partially agreed', 'text-amber-300', 'Most independent queries returned the same values.'],
-  conflict: ['Conflict', 'text-rose-300', 'Independent queries returned different values.'],
-  single: ['Single result', 'text-amber-300', 'Only one query ran, so nothing reproduced it: lower confidence.'],
+  conflict: ['Conflict', 'text-rose-300', 'Independent queries returned different values, so no answer was picked.'],
+  single: ['Single result', 'text-amber-300', 'Only one query ran, so nothing reproduced it and no answer was picked.'],
 } as const
 
 export function CouncilView({ council }: { council: CouncilInfo }) {
@@ -33,7 +33,7 @@ export function CouncilView({ council }: { council: CouncilInfo }) {
         <span>Council: <span className={cn('font-medium', color)}>{label}</span></span>
         <span className="text-zinc-400">{council.trigger === 'requested' ? '· requested' : '· the Reviewer disputed the first answer'}</span>
       </summary>
-      <p className="mt-2 text-zinc-400">{meaning} Judge: {council.judge.split('/').pop()}{council.chosen ? `, chose ${council.chosen}` : ', chose none'}.</p>
+      <p className="mt-2 text-zinc-400">{meaning}{council.judge && ` Judge: ${council.judge.split('/').pop()}${council.chosen ? `, chose ${council.chosen}` : ', chose none'}.`}</p>
       {council.disagreement && (
         <p className="mt-2 flex gap-2 rounded-md border border-amber-400/30 bg-amber-400/10 p-2 text-amber-100"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />{council.disagreement}</p>
       )}

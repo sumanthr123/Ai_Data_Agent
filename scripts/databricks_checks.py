@@ -1,5 +1,5 @@
 """Checks that run in Databricks (serverless job `ai-data-agent-checks`) against the source in the workspace: backend
-unit tests, then the live evaluation. Runs in-process so the job's own Databricks credentials are used.
+unit tests, then the live evaluation and its gate (evals/gate.py). Runs in-process so the job's own Databricks credentials are used.
 
 Job parameters: --root <workspace source folder> --warehouse-id <id> [--evals all|none|1,2,3]
 """
@@ -59,6 +59,12 @@ def main() -> int:
         only = None if args.evals == "all" else {int(x) for x in args.evals.split(",")}
         _in_thread(lambda: asyncio.run(run_evals.main(only)))
         print(f"\nReport written to {root / 'evals' / 'REPORT.md'}")
+        if args.evals == "all":  # thresholds need every category
+            from evals import gate
+
+            print("\n== eval gate", flush=True)
+            if gate.main([]):
+                return 1
     return 0
 
 
