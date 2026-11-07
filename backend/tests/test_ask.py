@@ -275,6 +275,10 @@ class ResilienceTests(unittest.TestCase):
         server = http.server.HTTPServer(("127.0.0.1", 0), Throttled)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.shutdown)
+        try:
+            socket.create_connection(("127.0.0.1", server.server_port), timeout=1).close()
+        except OSError:
+            self.skipTest("loopback is blocked here (Databricks serverless sandbox)")
         w = m.model_workspace_client(1, host=f"http://127.0.0.1:{server.server_port}", token="t", auth_type="pat")
         client = m.ServingClient(w, backoff_s=0)
         with unittest.mock.patch.object(m, "BREAKER", m._Breaker(threshold=2)):
