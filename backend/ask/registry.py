@@ -36,6 +36,7 @@ class Registry:
         self._loaded_at = 0.0
         self._profiles: dict[str, tuple[str, Profile]] = {}  # shared dataset -> (table version, profile)
         static = json.loads(_STATIC.read_text().replace("{prefix}", cfg.schema_prefix)) if _STATIC.exists() else {}
+        static = {n: m for n, m in static.items() if not m.get("legacy") or n.lower() == cfg.default_dataset.lower()}  # the source being replaced is listed only for a rollback
         self.freshness = {name.lower(): Policy(**m["freshness"]) for name, m in static.items() if m.get("freshness")}
         self.shared = {name.lower(): DatasetRecord(dataset=name.lower(), kind="shared", source=name, description=m.get("description", ""),
                                                    grain=m.get("grain", ""), key_columns=m.get("key_columns", []),

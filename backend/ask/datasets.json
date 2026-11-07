@@ -1,5 +1,6 @@
 {
   "ai_data_agent.orders.superstore": {
+    "legacy": true,
     "description": "Superstore retail sales, 2014 to 2017, USD.",
     "grain": "one row per order line (order_id, product_id)",
     "key_columns": [

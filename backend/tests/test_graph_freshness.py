@@ -130,6 +130,13 @@ class AgentGoldGuardTests(unittest.TestCase):
                     sql_guard.guard(sql, self.ALLOWED)
 
 
+class SharedDatasetTests(unittest.TestCase):
+    def test_legacy_table_is_listed_only_as_the_default(self):
+        gold = "ai_data_agent.agent_gold.orders"
+        self.assertEqual(list(Registry(dataclasses.replace(CFG, default_dataset=gold, schema_prefix=""), None).shared), [gold])
+        self.assertIn("ai_data_agent.orders.superstore", Registry(dataclasses.replace(CFG, default_dataset="ai_data_agent.orders.superstore"), None).shared)
+
+
 class TraceContentTests(unittest.TestCase):
     def _inputs(self, content: bool) -> dict:
         manager = unittest.mock.MagicMock()
