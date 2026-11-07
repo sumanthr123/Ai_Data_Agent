@@ -9,7 +9,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -35,11 +38,36 @@ def _in_thread(fn: Callable[[], Any]) -> Any:
     return out.get("value")
 
 
+def _frontend(root: Path) -> bool:
+    """Types, lint, tests and build with Node from the nodejs-wheel package, in a temp copy (no node_modules on /Workspace).
+    The built dist goes back to the source folder, so deploys use a UI built here."""
+    import nodejs_wheel
+
+    home = Path(nodejs_wheel.__file__).parent
+    node, npm = str(home / "bin" / "node"), str(home / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js")
+    work = Path(tempfile.mkdtemp()) / "frontend"
+    shutil.copytree(root / "frontend", work, ignore=shutil.ignore_patterns("node_modules", "dist"))
+    env = {**os.environ, "PATH": f"{home / 'bin'}:{work / 'node_modules' / '.bin'}:{os.environ['PATH']}"}
+    steps = [("install", [node, npm, "ci", "--no-audit", "--no-fund"]), ("types", ["tsc", "-b", "--noEmit"]),
+             ("lint", ["oxlint", "src", "--deny-warnings"]),
+             ("tests", [node, "--test", "src/lib/markdown.test.ts", "src/assistant/format.test.ts"]),
+             ("build", [node, npm, "run", "build", "--silent"])]
+    for name, cmd in steps:
+        done = subprocess.run(cmd, cwd=work, env=env, capture_output=True, text=True)
+        print(f"{name}: {'ok' if done.returncode == 0 else 'FAILED'}", flush=True)
+        if done.returncode:
+            print((done.stdout + done.stderr)[-3000:])
+            return False
+    shutil.copytree(work / "dist", root / "frontend" / "dist", dirs_exist_ok=True)
+    return True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=str(Path(globals().get("__file__", "scripts/x")).resolve().parents[1]))  # jobs run without __file__
     parser.add_argument("--warehouse-id", required=True)
     parser.add_argument("--evals", default="all", help="all, none, or comma-separated category numbers")
+    parser.add_argument("--frontend", action="store_true", help="also run frontend types, lint, tests and build")
     parser.add_argument("--env", action="append", default=[], help="KEY=VALUE set before settings are read")
     args = parser.parse_args()
     os.environ.update(e.split("=", 1) for e in args.env)
@@ -53,6 +81,11 @@ def main() -> int:
     if not result.wasSuccessful():
         print("Unit tests failed; skipping the live evaluation.")
         return 1
+
+    if args.frontend:
+        print("\n== frontend", flush=True)
+        if not _frontend(root):
+            return 1
 
     if args.evals != "none":
         print("\n== live evaluation", flush=True)

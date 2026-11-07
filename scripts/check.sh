@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# Pre-deploy gate (no hosted CI on this project): backend tests, frontend types, lint, tests and build. Stops on the first failure.
+# Pre-deploy gate. Everything runs in Databricks: sync the committed code, then run the backend and frontend checks there.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-echo "backend tests";  .venv/bin/python -m unittest discover -s backend/tests -t . 2>&1 | tail -n 3
-cd frontend
-echo "types";          npx tsc -b --noEmit
-echo "lint";           npx oxlint src --deny-warnings
-echo "frontend tests"; node --test src/lib/markdown.test.ts src/assistant/format.test.ts 2>&1 | grep -E "^ℹ (pass|fail)"
-echo "build";          npm run build --silent
-echo "OK: ready to deploy (live evals: .venv/bin/python -m evals.run_evals)"
+tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+git archive HEAD | tar -x -C "$tmp"
+databricks workspace import-dir "$tmp" /Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev --overwrite
+databricks jobs submit --timeout 30m --json @scripts/checks_run.json
