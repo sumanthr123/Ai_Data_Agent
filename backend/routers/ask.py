@@ -21,7 +21,7 @@ from backend.ask.cache import ResultCache, auth_key
 from backend.ask import profiling, sql_guard
 from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, ExportRequest, ModelOption, UploadResult
 from backend.ask.ingest import IngestionService, UploadRejected, user_key
-from backend.ask.models import ServingClient
+from backend.ask.models import ServingClient, model_workspace_client
 from backend.ask.orchestrator import DatabricksData, Orchestrator
 from backend.ask.registry import Registry
 from backend.ask.review_queue import ReviewQueue
@@ -55,6 +55,11 @@ def _app_run(sql: str, parameters: dict[str, str | None] | None = None) -> Execu
 @lru_cache(maxsize=1)
 def _app_client() -> WorkspaceClient:
     return WorkspaceClient()
+
+
+@lru_cache(maxsize=1)
+def _model_client() -> WorkspaceClient:
+    return model_workspace_client(ask_settings.model_retry_window_s)
 
 
 @lru_cache(maxsize=1)
@@ -119,7 +124,7 @@ def _orchestrator(request: Request, cancelled: threading.Event, on_event=None) -
         raise HTTPException(503, f"Misconfigured: {exc}") from exc
     data_w, auth, token = _clients(request)
     # Models are called as the app (users don't need endpoint access); data is read with the caller's credentials.
-    return Orchestrator(ask_settings, DatabricksData(data_w, ask_settings, cancelled), ServingClient(_app_client(), ask_settings.efforts()),
+    return Orchestrator(ask_settings, DatabricksData(data_w, ask_settings, cancelled), ServingClient(_model_client(), ask_settings.efforts()),
                         auth, auth_key(token), _cache, _tracer, cancelled, registry=registry(), user_key=user_key(_principal(request)),
                         on_event=on_event, review=review_queue().put if ask_settings.review_queue_table else None)
 
@@ -138,7 +143,7 @@ def _probe(endpoint: str) -> ModelOption:
     if cached and time.monotonic() - cached[0] < 900:
         return cached[1]
     try:
-        ServingClient(_app_client(), retries=0).chat(endpoint, "Reply OK.", "OK", 16)
+        ServingClient(_model_client(), retries=0).chat(endpoint, "Reply OK.", "OK", 16)
         option = ModelOption(id=endpoint, family=model_family(endpoint), available=True)
     except Exception as exc:
         option = ModelOption(id=endpoint, family=model_family(endpoint), available=False, note=plain_error(exc))

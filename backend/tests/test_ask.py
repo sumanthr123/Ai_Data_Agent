@@ -251,6 +251,42 @@ class ResilienceTests(unittest.TestCase):
             self.assertEqual(c.chat("e", "s", "u", 10).text, "{}")
         self.assertEqual(c._chat.call_count, 2)
 
+    def test_sustained_throttling_fails_inside_the_sdk_window_and_opens_the_breaker(self):
+        import http.server, threading, time
+        from backend.ask import models as m
+
+        hits = []
+
+        class Throttled(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("content-length", 0)))
+                hits.append(1)
+                body = b'{"error_code": "REQUEST_LIMIT_EXCEEDED", "message": "Quota exceeded"}'
+                self.send_response(429)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Throttled)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        w = m.model_workspace_client(1, host=f"http://127.0.0.1:{server.server_port}", token="t", auth_type="pat")
+        client = m.ServingClient(w, backoff_s=0)
+        with unittest.mock.patch.object(m, "BREAKER", m._Breaker(threshold=2)):
+            started = time.monotonic()
+            for _ in range(2):
+                with self.assertRaises(TimeoutError):
+                    client.chat("e", "s", "u", 10)
+            self.assertLess(time.monotonic() - started, 10)
+            sent = len(hits)
+            with self.assertRaises(m.CircuitOpen):
+                client.chat("e", "s", "u", 10)
+            self.assertEqual(len(hits), sent)
+
     def test_permanent_error_is_not_retried_and_breaker_opens(self):
         m, c = self.client([RuntimeError("no credit balance")] * 3)
         with unittest.mock.patch.object(m, "BREAKER", m._Breaker(threshold=3)):

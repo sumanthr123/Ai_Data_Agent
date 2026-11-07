@@ -78,6 +78,7 @@ class AskSettings:
     warehouse_start_grace_s: int = _int("WAREHOUSE_START_GRACE_S", 90)  # extra time while the warehouse starts or queues
     statement_byte_limit: int = _int("STATEMENT_BYTE_LIMIT", 16 * 1024 * 1024)
     model_timeout_s: int = _int("ASK_MODEL_TIMEOUT_S", 60)
+    model_retry_window_s: int = _int("MODEL_RETRY_WINDOW_S", 20)  # SDK retries on 429/503; keep below model_timeout_s
     cache_ttl_s: int = _int("RESULT_CACHE_TTL_S", 300)
     # Shared tables refresh daily; older than this, answers say the data may be stale.
     stale_after_hours: int = _int("STALE_AFTER_HOURS", 36)

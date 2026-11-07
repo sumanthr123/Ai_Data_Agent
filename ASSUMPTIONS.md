@@ -17,7 +17,7 @@ reason), or **blocked** (not possible on this workspace).
 | Spec | Status |
 |---|---|
 | `agentbricks init`, DurableAgentServer, Agent Runtime | blocked: no app slot; the FastAPI app already serves `/api/ask` |
-| Unity AI Gateway `ChatDatabricks` | adapted: `models.py` calls Model Serving directly, with one retry on 429/5xx/timeout and a per-endpoint breaker |
+| Unity AI Gateway `ChatDatabricks` | adapted: `models.py` calls Model Serving directly. The SDK retries 429/503 for at most `MODEL_RETRY_WINDOW_S`, other transient errors get one retry, and a per-endpoint breaker sits behind both |
 | Genie / DBSQL / web-search MCP | adapted: Statement Execution API (`warehouse.py`) and grounded Gemini Search (`web_search.py`) |
 | Managed sessions checkpointer | adapted: conversation state travels in each request (`ConversationState`) |
 | Debaters A/B/C, judge J, router R | adapted: `COUNCIL_ENDPOINTS`, `ADJUDICATOR_MODEL_ENDPOINT`; the Analyst's plan call does the routing. No temperature is sent to Claude |

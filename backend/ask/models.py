@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.config import Config
 
 from backend.ask.text import message_text
 
@@ -38,6 +39,12 @@ def _usage(raw: dict[str, Any]) -> tuple[int, int, int, int]:
 
 
 TRANSIENT = ("429", "rate limit", "503", "502", "504", "temporarily", "overloaded", "timed out", "timeout")
+
+
+def model_workspace_client(retry_window_s: int, **config: Any) -> WorkspaceClient:
+    """The SDK handles 429/503 itself, retrying for 300s by default, so they never reach ServingClient's retry or breaker
+    and outlive the model timeout. Model calls get a window shorter than that timeout."""
+    return WorkspaceClient(config=Config(retry_timeout_seconds=retry_window_s, **config))
 
 
 class CircuitOpen(RuntimeError):
@@ -70,7 +77,8 @@ BREAKER = _Breaker()
 
 class ServingClient:
     """`endpoint` or `endpoint/served_model` (one endpoint hosting several external models).
-    Transient provider errors (429/5xx/timeouts) are retried once with jittered backoff; repeated failures open a breaker."""
+    The SDK retries 429/503 within its window (`model_workspace_client`); other transient errors (5xx/timeouts) are retried
+    once here with jittered backoff. Repeated failures open a breaker."""
 
     def __init__(self, w: WorkspaceClient, efforts: dict[str, str] | None = None, retries: int = 1, backoff_s: float = 1.5) -> None:
         self.w, self.efforts, self.retries, self.backoff_s = w, efforts or {}, retries, backoff_s
@@ -83,7 +91,8 @@ class ServingClient:
                 BREAKER.record(endpoint, True)
                 return result
             except Exception as exc:
-                transient = any(t in str(exc).lower() for t in TRANSIENT)
+                # TimeoutError: the SDK's retry window is already spent, so a second one only delays the failure.
+                transient = not isinstance(exc, TimeoutError) and any(t in str(exc).lower() for t in TRANSIENT)
                 if not transient or attempt == self.retries:
                     BREAKER.record(endpoint, False)
                     raise
