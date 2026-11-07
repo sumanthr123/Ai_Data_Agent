@@ -6,6 +6,7 @@ retention, so every run purges, even with nothing pending; the weekly schedule c
 The landing volume is the source of record and is purged separately. Do that BEFORE any full refresh of bronze: a full
 refresh re-reads landing and would restore the person."""
 import sys
+import time
 
 from databricks.sdk import WorkspaceClient
 from pyspark.sql import SparkSession
@@ -26,31 +27,33 @@ def purge() -> None:
 spark.sql(f"""CREATE TABLE IF NOT EXISTS {requests} (customer_id STRING NOT NULL, requested_at TIMESTAMP, completed_at TIMESTAMP)
 COMMENT 'Erasure requests. Holds ids only.' CLUSTER BY AUTO""")
 pending = [r.customer_id for r in spark.sql(f"SELECT DISTINCT customer_id FROM {requests} WHERE completed_at IS NULL LIMIT 1000").collect()]
-if not pending:
-    purge()
-    print("no pending requests; files past retention purged")
-    sys.exit(0)
 
-args = {f"c{i}": c for i, c in enumerate(pending)}
-ids = ", ".join(f":{k}" for k in args)
-names = [r.customer_name for r in spark.sql(f"SELECT DISTINCT customer_name FROM {silver} WHERE customer_id IN ({ids})", args=args).collect() if r.customer_name]
 
-for table in (bronze, silver):
-    spark.sql(f"DELETE FROM {table} WHERE customer_id IN ({ids})", args=args)
+def erase() -> None:
+    args = {f"c{i}": c for i, c in enumerate(pending)}
+    ids = ", ".join(f":{k}" for k in args)
+    names = [r.customer_name for r in spark.sql(f"SELECT DISTINCT customer_name FROM {silver} WHERE customer_id IN ({ids})", args=args).collect() if r.customer_name]
 
-w = WorkspaceClient()
-update = w.pipelines.start_update(pipeline_id, full_refresh_selection=[f"{catalog}.{prefix}gold.orders"]).update_id
-while (state := w.pipelines.get_update(pipeline_id, update).update.state.value) not in ("COMPLETED", "FAILED", "CANCELED"):
-    __import__("time").sleep(10)
-if state != "COMPLETED":
-    raise RuntimeError(f"gold rebuild {state}; requests stay pending and this job is safe to rerun")
+    for table in (bronze, silver):
+        spark.sql(f"DELETE FROM {table} WHERE customer_id IN ({ids})", args=args)
 
-for spec in traces:  # traces hold free text, so match the person's id and name
-    table, cols = spec.split(":")
-    terms = {**args, **{f"n{i}": n for i, n in enumerate(names)}}
-    match = " OR ".join(f"contains({c}, :{k})" for c in cols.split("+") for k in terms)
-    spark.sql(f"DELETE FROM {table} WHERE {match}", args=terms)
+    w = WorkspaceClient()
+    update = w.pipelines.start_update(pipeline_id, full_refresh_selection=[f"{catalog}.{prefix}gold.orders"]).update_id
+    while (state := w.pipelines.get_update(pipeline_id, update).update.state.value) not in ("COMPLETED", "FAILED", "CANCELED"):
+        time.sleep(10)
+    if state != "COMPLETED":
+        raise RuntimeError(f"gold rebuild {state}; requests stay pending and this job is safe to rerun")
 
+    for spec in traces:  # traces hold free text, so match the person's id and name
+        table, cols = spec.split(":")
+        terms = {**args, **{f"n{i}": n for i, n in enumerate(names)}}
+        match = " OR ".join(f"contains({c}, :{k})" for c in cols.split("+") for k in terms)
+        spark.sql(f"DELETE FROM {table} WHERE {match}", args=terms)
+
+    spark.sql(f"UPDATE {requests} SET completed_at = current_timestamp() WHERE completed_at IS NULL AND customer_id IN ({ids})", args=args)
+
+
+if pending:  # no sys.exit here: serverless reports it as a failed run
+    erase()
 purge()
-spark.sql(f"UPDATE {requests} SET completed_at = current_timestamp() WHERE completed_at IS NULL AND customer_id IN ({ids})", args=args)
-print(f"erased {len(pending)} subject(s)")
+print(f"erased {len(pending)} subject(s); files past retention purged")
