@@ -40,7 +40,9 @@ def main() -> int:
     parser.add_argument("--root", default=str(Path(globals().get("__file__", "scripts/x")).resolve().parents[1]))  # jobs run without __file__
     parser.add_argument("--warehouse-id", required=True)
     parser.add_argument("--evals", default="all", help="all, none, or comma-separated category numbers")
+    parser.add_argument("--env", action="append", default=[], help="KEY=VALUE set before settings are read")
     args = parser.parse_args()
+    os.environ.update(e.split("=", 1) for e in args.env)
     root = Path(args.root)
     os.chdir(root)
     sys.path.insert(0, str(root))

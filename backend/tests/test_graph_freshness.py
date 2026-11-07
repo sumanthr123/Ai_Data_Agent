@@ -7,6 +7,7 @@ import unittest.mock
 
 from backend.ask import council_graph, freshness, sql_guard
 from backend.ask.freshness import Policy
+from backend.ask.registry import Registry
 from backend.services import analysis
 from backend.services.sql_safety import UnsafeSqlError
 from backend.ask.warehouse import Execution, QueryError
@@ -94,6 +95,14 @@ _real_init = __import__("backend.ask.registry", fromlist=["Registry"]).Registry.
 def _with_sla(self, *a, **k):
     _real_init(self, *a, **k)
     self.freshness = {TABLE: Policy(sla_s=60)}
+
+
+class AgentGoldDatasetTests(unittest.TestCase):
+    def test_schema_prefix_selects_dev_or_production_names(self):
+        for prefix, name in (("", "ai_data_agent.agent_gold.orders"), ("dev_x_", "ai_data_agent.dev_x_agent_gold.orders")):
+            registry = Registry(dataclasses.replace(CFG, schema_prefix=prefix), None)
+            self.assertIn(name, registry.shared)
+            self.assertEqual(registry.freshness[name].table, name.replace("agent_gold", "gold"))
 
 
 class AgentGoldGuardTests(unittest.TestCase):

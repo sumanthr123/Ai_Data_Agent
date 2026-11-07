@@ -2,10 +2,20 @@
   "ai_data_agent.orders.superstore": {
     "description": "Superstore retail sales, 2014 to 2017, USD.",
     "grain": "one row per order line (order_id, product_id)",
-    "key_columns": ["row_id"],
-    "grain_columns": ["order_id", "product_id"],
+    "key_columns": [
+      "row_id"
+    ],
+    "grain_columns": [
+      "order_id",
+      "product_id"
+    ],
     "date_column": "order_date",
-    "join_keys": {"customer_id": "customer", "product_id": "product", "order_id": "order", "postal_code": "postal code"},
+    "join_keys": {
+      "customer_id": "customer",
+      "product_id": "product",
+      "order_id": "order",
+      "postal_code": "postal code"
+    },
     "columns": {
       "row_id": "Unique line id.",
       "order_id": "Order id; an order has one or more lines.",
@@ -14,6 +24,38 @@
       "discount": "Discount as a fraction (0.2 = 20%).",
       "quantity": "Units on the line.",
       "postal_code": "US ZIP code."
+    }
+  },
+  "ai_data_agent.{prefix}agent_gold.orders": {
+    "description": "Superstore retail sales, 2014 to 2017, USD.",
+    "grain": "one row per order line (order_id, product_id)",
+    "key_columns": [
+      "row_id"
+    ],
+    "grain_columns": [
+      "order_id",
+      "product_id"
+    ],
+    "date_column": "order_date",
+    "join_keys": {
+      "customer_id": "customer",
+      "product_id": "product",
+      "order_id": "order",
+      "postal_code": "postal code"
+    },
+    "columns": {
+      "row_id": "Unique line id.",
+      "order_id": "Order id; an order has one or more lines.",
+      "sales": "Line revenue in USD after discount.",
+      "profit": "Line profit in USD; negative is a loss.",
+      "discount": "Discount as a fraction (0.2 = 20%).",
+      "quantity": "Units on the line.",
+      "postal_code": "US ZIP code."
+    },
+    "freshness": {
+      "sla_s": 129600,
+      "mode": "triggered",
+      "table": "ai_data_agent.{prefix}gold.orders"
     }
   }
 }

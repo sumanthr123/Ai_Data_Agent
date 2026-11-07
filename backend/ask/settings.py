@@ -41,6 +41,8 @@ class ConfigError(ValueError):
 class AskSettings:
     warehouse_id: str = os.getenv("DATABRICKS_SQL_WAREHOUSE_ID") or os.getenv("DATABRICKS_WAREHOUSE_ID", "")
     default_dataset: str = os.getenv("DEFAULT_DATASET_SOURCE", "ai_data_agent.orders.superstore")
+    # dev data layer schemas start with this (dev_<user>_); empty in production.
+    schema_prefix: str = os.getenv("SCHEMA_PREFIX", "")
     catalog: str = os.getenv("UC_CATALOG", "ai_data_agent")
     schema: str = os.getenv("UC_SCHEMA", "orders")
     upload_volume: str = os.getenv("UC_UPLOAD_VOLUME", "uploads")
