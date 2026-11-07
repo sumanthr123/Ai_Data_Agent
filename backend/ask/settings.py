@@ -100,7 +100,7 @@ class AskSettings:
     definitions: dict = field(default_factory=lambda: _json("BUSINESS_DEFINITIONS", DEFAULT_DEFINITIONS))
     # {"endpoint": [usd_per_1M_input, usd_per_1M_output]}; costs are reported only for endpoints listed here.
     prices: dict = field(default_factory=lambda: _json("MODEL_PRICES_JSON", {}))
-    mlflow_experiment: str = os.getenv("MLFLOW_EXPERIMENT", "")
+    mlflow_experiment: str = os.getenv("MLFLOW_EXPERIMENT", "").replace("{client_id}", os.getenv("DATABRICKS_CLIENT_ID", ""))  # the app principal's own folder
     trace_content: bool = os.getenv("TRACE_CONTENT", "false").lower() == "true"
 
     @property

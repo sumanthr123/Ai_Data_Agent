@@ -61,7 +61,7 @@ warning: the daily refresh job may have failed.
 
 ## Deploy
 
-Production is the app `ai-data-agent`. Production deploys need the owner's approval.
+Production is the app `ai-data-agent`. Production deploys need the owner's approval. The scripts take the user from the CLI login, the warehouse from the app's `sql-warehouse` resource and the dataset from `app.yaml` (`scripts/env.sh`); set `APP_NAME` for another app.
 
 ```bash
 scripts/check.sh    # backend and frontend checks in Databricks; builds the UI

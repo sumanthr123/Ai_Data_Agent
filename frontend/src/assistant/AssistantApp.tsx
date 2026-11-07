@@ -131,7 +131,8 @@ export default function AssistantApp() {
   const [model, setModel] = useState<string | null>(() => {
     try { return localStorage.getItem(MODEL_KEY) } catch { return null }
   })
-  useEffect(() => { listModels().then(setModels).catch(() => setModels([])) }, [])
+  const [modelsError, setModelsError] = useState<string | null>(null)
+  useEffect(() => { listModels().then(setModels).catch((err) => { setModels([]); setModelsError(`Model list unavailable, using Auto: ${(err as Error).message}`) }) }, [])
   // A remembered pick that's no longer offered or available falls back to Auto.
   const chosen = model && (!models.length || models.some((m) => m.id === model && m.available)) ? model : null
   const pickModel = (id: string) => {
@@ -243,6 +244,7 @@ export default function AssistantApp() {
           <div ref={feed} className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-3xl space-y-8 px-4 py-6">
               {loadError && <p role="alert" className="rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-[13px] text-rose-100">Couldn't load datasets: {loadError} <button type="button" className="underline" onClick={() => refresh()}>Retry</button></p>}
+              {modelsError && <p role="alert" className="rounded-lg border border-rose-400/30 bg-rose-400/10 p-3 text-[13px] text-rose-100">Couldn't load datasets: {modelsError} <button type="button" className="underline" onClick={() => refresh()}>Retry</button></p>}
               {turns.length === 0 && (
                 <section className="pt-8 text-center">
                   <h2 className="text-[22px] font-semibold tracking-tight">What do you want to know?</h2>

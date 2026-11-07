@@ -17,7 +17,7 @@ env:
     value: "ai_data_agent.agent_gold.orders"
   # Traces hold metadata only (route, model, tokens, latency); set TRACE_CONTENT=true for text, which the GDPR job can't erase here.
   - name: MLFLOW_EXPERIMENT
-    value: "/Users/e572c2cb-a6ae-4943-9419-68439ce6dda5/ai-data-agent-traces"
+    value: "/Users/{client_id}/ai-data-agent-traces"
   - name: UC_SCHEMA
     value: "orders"
   - name: UC_UPLOAD_VOLUME

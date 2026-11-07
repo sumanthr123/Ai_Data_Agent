@@ -3,9 +3,10 @@
 # --save-baseline keeps this release's metrics as the baseline.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-run=$(python3 -c "
-import json, sys
-d = json.load(open('scripts/evals_run.json'))
+. scripts/env.sh
+run=$(RUN="$(render scripts/evals_run.json)" python3 -c "
+import json, os
+d = json.loads(os.environ['RUN'])
 p = d['tasks'][0]['spark_python_task']['parameters']
 p.remove('--frontend')
 p[p.index('--evals') + 1] = 'all'

@@ -6,7 +6,7 @@
    "spec": {
     "client": "2",
     "dependencies": [
-     "-r /Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev/requirements.txt",
+     "-r /Workspace/Users/{{USER}}/consensus-agent-dev/requirements.txt",
      "nodejs-wheel==24.19.0"
     ]
    }
@@ -18,19 +18,19 @@
    "environment_key": "py",
    "spark_python_task": {
     "source": "WORKSPACE",
-    "python_file": "/Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev/scripts/databricks_checks.py",
+    "python_file": "/Workspace/Users/{{USER}}/consensus-agent-dev/scripts/databricks_checks.py",
     "parameters": [
      "--root",
-     "/Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev",
+     "/Workspace/Users/{{USER}}/consensus-agent-dev",
      "--warehouse-id",
-     "3d46aa484790192c",
+     "{{WAREHOUSE_ID}}",
      "--frontend",
      "--evals",
      "none",
      "--env",
-     "DEFAULT_DATASET_SOURCE=ai_data_agent.agent_gold.orders",
+     "DEFAULT_DATASET_SOURCE={{DEFAULT_DATASET}}",
      "--env",
-     "EVAL_EXPERIMENT=/Users/sumanth6543210@gmail.com/ai-data-agent-evals"
+     "EVAL_EXPERIMENT=/Users/{{USER}}/ai-data-agent-evals"
     ]
    }
   }

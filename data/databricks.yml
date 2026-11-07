@@ -19,7 +19,7 @@ variables:
     description: The app's service principal. The agent reads agent_gold; gold only so freshness can read Last Refreshed.
     default: e572c2cb-a6ae-4943-9419-68439ce6dda5
   alert_email:
-    default: sumanth6543210@gmail.com
+    default: ${workspace.current_user.userName}
 
 targets:
   dev:
@@ -32,6 +32,6 @@ targets:
     variables:
       trace_tables: ${var.catalog}.user_uploads.review_queue:question+sql+detail,${var.catalog}.app_ops.question_log:question,${var.catalog}.app_ops.answer_feedback:question+answer
     workspace:
-      root_path: /Workspace/Users/sumanth6543210@gmail.com/.bundle/${bundle.name}/prod
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/prod
     run_as:
-      user_name: sumanth6543210@gmail.com
+      user_name: ${workspace.current_user.userName}

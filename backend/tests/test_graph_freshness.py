@@ -130,6 +130,16 @@ class AgentGoldGuardTests(unittest.TestCase):
                     sql_guard.guard(sql, self.ALLOWED)
 
 
+class SilentFailureTests(unittest.TestCase):
+    def test_unreadable_freshness_is_logged(self):
+        def denied(_):
+            raise RuntimeError("no SELECT")
+
+        with self.assertLogs("ask.freshness", "WARNING") as logs:
+            self.assertIsNone(freshness.last_commit("c.s.unreadable", denied))
+        self.assertIn("no SELECT", logs.output[0])
+
+
 class SharedDatasetTests(unittest.TestCase):
     def test_legacy_table_is_listed_only_as_the_default(self):
         gold = "ai_data_agent.agent_gold.orders"

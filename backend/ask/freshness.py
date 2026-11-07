@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import re
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
+logger = logging.getLogger("ask.freshness")
 CACHE_S = 60
 _cache: dict[str, tuple[float, str | None]] = {}
 _lock = threading.Lock()
@@ -40,7 +42,8 @@ def last_commit(table: str, execute: Callable[[str], Any]) -> str | None:
         return hit[1]
     try:
         ts = _refreshed(table, execute)
-    except Exception:
+    except Exception as exc:  # the caller falls back to the table's UC update time
+        logger.warning("Freshness of %s unreadable: %s", table, str(exc)[:200])
         ts = None
     with _lock:
         _cache[table] = (time.monotonic(), ts)

@@ -62,8 +62,8 @@ class Registry:
             return
         try:
             rows = self._run(f"SELECT record FROM {table_ref(self.cfg.registry_table)} WHERE kind = 'upload'").result.rows
-        except Exception as exc:  # no registry table yet: no uploads
-            logger.info("Registry not readable yet: %s", str(exc)[:200])
+        except Exception as exc:  # expected only before the first upload creates the table; otherwise uploads are hidden
+            logger.warning("Registry unreadable, listing no uploads: %s", str(exc)[:200])
             rows = []
         uploads = {}
         for row in rows:

@@ -411,7 +411,8 @@ class IngestionService:
                     if any(True for _ in self.w.files.list_directory_contents(parent)):
                         break
                     self.w.files.delete_directory(parent)
-                except Exception:
+                except Exception as exc:
+                    logger.warning("Upload folder %s not removed: %s", parent, str(exc)[:200])
                     break
 
 

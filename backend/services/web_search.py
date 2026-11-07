@@ -8,6 +8,7 @@ Everything fetched from the web is untrusted data: it is quoted to the models, n
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import html
 import json
 import os
@@ -18,6 +19,8 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+logger = logging.getLogger("ask.web")
 
 MODEL = os.getenv("WEB_SEARCH_MODEL", "gemini-flash-latest")
 URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -123,8 +126,8 @@ def _resolve(web: dict[str, Any]) -> dict[str, Any] | None:
         with urllib.request.urlopen(req, timeout=6) as response:
             final = response.geturl()
             head = response.read(300_000).decode("utf-8", errors="ignore")
-    except Exception:
-        pass
+    except Exception as exc:  # the redirect URI still identifies the source
+        logger.warning("Source %s unreadable: %s", uri[:200], str(exc)[:200])
     host = urllib.parse.urlparse(final).netloc.lower().removeprefix("www.")
     if _is_search_page(final):
         return None
