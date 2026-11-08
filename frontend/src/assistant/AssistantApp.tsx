@@ -1,8 +1,9 @@
 import { ArrowLeft, Menu, Monitor, Moon, PanelLeft, PanelRight, SquarePen, Sun, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { cn } from '../lib/cn'
 import { useTheme } from '../theme'
 import { AnswerCard, type DatasetShape, type TurnAction } from './AnswerCard'
+import { CanvasPanel } from './CanvasPanel'
 import { getIdentity, listDatasets, listModels } from './api'
 import { Composer, datasetLabel, type Mode } from './Composer'
 import { DatasetPanel } from './DatasetPanel'
@@ -79,6 +80,8 @@ export default function AssistantApp() {
   const [rail, setRail] = useState(() => readLocal(RAIL_KEY) === 'collapsed')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [evidenceId, setEvidenceId] = useState<string | null>(null)
+  const [canvasId, setCanvasId] = useState<string | null>(null)
+  const [canvasPct, setCanvasPct] = useState(55)
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [identityError, setIdentityError] = useState<string | null>(null)
   const [models, setModels] = useState<ModelOption[]>([])
@@ -152,7 +155,8 @@ export default function AssistantApp() {
   latest.current = { submit, ask: a.ask, usable, chosen, pin: pins.toggle }
   const onTurnAction = useCallback((turn: Turn, action: TurnAction) => {
     const l = latest.current
-    if (action.type === 'details') { setEvidenceId(turn.id); setDrawerOpen(true) }
+    if (action.type === 'details') { setEvidenceId(turn.id); setDrawerOpen(true); setCanvasId(null) }
+    else if (action.type === 'canvas') { setCanvasId(turn.id); setDrawerOpen(false) }
     else if (action.type === 'retry') l.submit(turn.question)
     else if (action.type === 'council') l.ask(turn.question, true, l.usable, l.chosen)
     else if (action.type === 'ask') l.submit(action.text)
@@ -160,7 +164,7 @@ export default function AssistantApp() {
     else if (action.type === 'prefill') { setDraft(action.text); requestAnimationFrame(() => box.current?.focus()) }
     else box.current?.focus()
   }, [])
-  const newChat = useCallback(() => { a.start(selected.length ? selected : defaults); setNavOpen(false); setTopic(null); box.current?.focus() }, [a, selected, defaults])
+  const newChat = useCallback(() => { a.start(selected.length ? selected : defaults); setNavOpen(false); setTopic(null); setCanvasId(null); box.current?.focus() }, [a, selected, defaults])
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -170,6 +174,7 @@ export default function AssistantApp() {
       if (e.key !== 'Escape') return
       if (a.busy) { a.cancel(); return }
       setNavOpen(false)
+      setCanvasId(null)
       if (window.innerWidth < 1280) setDrawerOpen(false)
     }
     window.addEventListener('keydown', onKey)
@@ -190,6 +195,25 @@ export default function AssistantApp() {
   const ThemeIcon = theme.pref === 'system' ? Monitor : theme.pref === 'light' ? Sun : Moon
   const lastChat = a.conversations.find((c) => c.id !== a.activeId && c.turns.length)
   const noAccess = loaded && !loadError && datasets.length === 0
+  const versions = turns.filter((t) => t.response?.sql && (t.response.kind ?? 'data') === 'data')
+  const canvasOpen = !!canvasId && !home && versions.length > 0
+  const canvas = canvasOpen && (
+    <CanvasPanel versions={versions} activeId={canvasId!} onPick={setCanvasId} onClose={() => { setCanvasId(null); box.current?.focus() }} theme={theme.resolved}
+      pinned={pinnedIds.has(canvasId!)} onPin={pins.toggle} onRerun={(t) => submit(t.question)} />
+  )
+  /** The divider is keyboard-resizable (arrow keys, 5% steps) as well as draggable. */
+  const onDivider = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const host = e.currentTarget.parentElement
+    if (!host) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const move = (ev: PointerEvent) => {
+      const box = host.getBoundingClientRect()
+      setCanvasPct(Math.min(70, Math.max(35, ((box.right - ev.clientX) / box.width) * 100)))
+    }
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
 
   const composer = (
     <Composer boxRef={box} draft={draft} setDraft={setDraft} onSubmit={() => submit()} onKeyDown={onComposerKey} busy={a.busy} onStop={a.cancel}
@@ -251,7 +275,7 @@ export default function AssistantApp() {
         </div>
       )}
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-w-0 flex-1 flex-col" style={canvasOpen ? { flexBasis: `${100 - canvasPct}%` } : undefined}>
         <header className="flex items-center gap-2 px-3 py-2">
           <button type="button" className="rounded-md p-1.5 text-fg-2 hover:bg-surface-2 lg:hidden" onClick={() => setNavOpen(true)} aria-label="Open sidebar"><Menu className="h-5 w-5" /></button>
           {!home && <h1 className="truncate text-[14px] font-medium text-fg-2">{a.active?.title}</h1>}
@@ -347,7 +371,20 @@ export default function AssistantApp() {
         )}
       </main>
 
-      <div className={cn('hidden w-[400px] shrink-0 border-l border-line bg-surface', drawerOpen && !home && 'xl:block')}>
+      {canvasOpen && (
+        <>
+          <div role="separator" aria-orientation="vertical" aria-label="Resize canvas" aria-valuenow={Math.round(canvasPct)} aria-valuemin={35} aria-valuemax={70} tabIndex={0}
+            onPointerDown={onDivider}
+            onKeyDown={(e) => { if (e.key === 'ArrowLeft') setCanvasPct((p) => Math.min(70, p + 5)); if (e.key === 'ArrowRight') setCanvasPct((p) => Math.max(35, p - 5)) }}
+            className="hidden w-1.5 shrink-0 cursor-col-resize bg-line hover:bg-line-strong xl:block" />
+          <div className="hidden min-w-0 xl:block" style={{ flexBasis: `${canvasPct}%` }}>{canvas}</div>
+          <div className="fixed inset-0 z-40 xl:hidden" role="dialog" aria-modal="true" aria-label="Canvas">
+            <div className="absolute inset-0 hidden bg-black/40 md:block" onClick={() => setCanvasId(null)} />
+            <div className="absolute inset-0 md:left-auto md:w-[min(720px,92vw)] md:border-l md:border-line">{canvas}</div>
+          </div>
+        </>
+      )}
+      <div className={cn('hidden w-[400px] shrink-0 border-l border-line bg-surface', drawerOpen && !home && !canvasOpen && 'xl:block')}>
         <EvidenceDrawer turn={evidenceTurn} onClose={() => setDrawerOpen(false)} />
       </div>
       {drawerOpen && !home && (

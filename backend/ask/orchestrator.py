@@ -262,7 +262,10 @@ class Orchestrator:
         if plan.status in ("CHAT", "DOCS") and _HAS_CODE.search(question):  # pasted code is a code question, whatever the planner said
             plan.status = "CODE"
         if plan.status == "WEB" and _OWN_FIGURE.search(question):  # the web can't know this business's figures, and a search is billed
-            plan.status, plan.sql, plan.missing = "INSUFFICIENT_SCHEMA", None, plan.missing or "that figure isn't in these tables"
+            plan = await self._call("analyst", "plan", prompts.ANALYST_PLAN + prompts.OWN_FIGURES, self._user(context, question),
+                                    AnalystPlan, cfg.analyst_max_out)
+            if plan.status == "WEB":
+                plan.status, plan.sql, plan.missing = "INSUFFICIENT_SCHEMA", None, plan.missing or "the web can't know this figure and the tables don't have it"
         if plan.status == "CHAT":
             self._event("generate_sql", "skipped", mark, "conversational")
             return self._finish("ANSWERED", state, kind="chat", answer=(plan.reply or "I answer questions about your data, this project and code.").strip())

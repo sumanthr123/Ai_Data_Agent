@@ -6,8 +6,8 @@ import type { Cell, ResultPreview } from './types'
 const compare = (a: Cell, b: Cell) => (a === null ? 1 : b === null ? -1 : typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b)))
 
 /** Sticky header, sortable columns, tabular numbers. Scrolls inside its own box so the page never scrolls sideways. */
-export function ResultTable({ result }: { result: ResultPreview }) {
-  const [limit, setLimit] = useState(20)
+export function ResultTable({ result, tall = false }: { result: ResultPreview; tall?: boolean }) {
+  const [limit, setLimit] = useState(tall ? 500 : 20)
   const [sort, setSort] = useState<{ col: string; dir: 1 | -1 } | null>(null)
   const types = Object.fromEntries(result.columns.map((c, i) => [c, result.column_types[i] ?? '']))
   const sorted = useMemo(() => (sort ? [...result.rows].sort((a, b) => compare(a[sort.col], b[sort.col]) * sort.dir) : result.rows), [result.rows, sort])
@@ -15,7 +15,7 @@ export function ResultTable({ result }: { result: ResultPreview }) {
   const toggle = (col: string) => setSort((s) => (s?.col !== col ? { col, dir: isNumericType(types[col]) ? -1 : 1 } : s.dir === 1 ? { col, dir: -1 } : { col, dir: 1 }))
   return (
     <div className="rounded-lg border border-line">
-      <div className="max-h-[360px] overflow-auto">
+      <div className={tall ? 'overflow-auto' : 'max-h-[360px] overflow-auto'}>
         <table className="w-full border-collapse text-[13px]">
           <caption className="sr-only">Query result, {result.row_count.toLocaleString()} rows{sort ? `, sorted by ${sort.col}` : ''}</caption>
           <thead className="sticky top-0 bg-surface-2">

@@ -109,7 +109,8 @@ class LiveQuestionTests(unittest.TestCase):
 
     def test_own_business_figure_never_goes_to_the_web(self):
         searched = []
-        r, _, data = run({CFG.analyst: [{**WEB_PLAN, "search_query": "advertising spend"}]}, question="What was our advertising spend in 2017?",
+        r, _, data = run({CFG.analyst: [{**WEB_PLAN, "search_query": "advertising spend"}, {"status": "INSUFFICIENT_SCHEMA", "missing": "advertising spend"}]},
+                         question="What was our advertising spend in 2017?",
                          search=lambda q: searched.append(q) or fake_search(q))
         self.assertEqual((r.status, searched, data.executed), ("INSUFFICIENT_SCHEMA", [], []))
 
@@ -781,6 +782,20 @@ class SettledQuestionTests(unittest.TestCase):
         ask = {"status": "CLARIFY", "clarifying_question": "Which metric dropped: sales or profit?", "clarifying_options": ["Sales", "Profit"]}
         r, _, _ = run({CFG.analyst: [ask]}, question="Why did it drop in February?")
         self.assertEqual(r.status, "NEEDS_CLARIFICATION")
+
+
+
+class OwnFigureTests(unittest.TestCase):
+    def test_web_pick_for_own_figures_is_replanned_against_the_tables(self):
+        r, models, _ = run({CFG.analyst: [{**WEB_PLAN, "search_query": "our sales news"}, PLAN, GOOD], CFG.reviewer: [APPROVED]},
+                           question="What is the latest news on our sales by region?")
+        self.assertEqual((r.kind, r.status), ("data", "ANSWERED"))
+
+    def test_still_web_after_the_replan_says_what_is_missing(self):
+        r, _, data = run({CFG.analyst: [WEB_PLAN, WEB_PLAN]}, question="What is our sales share of the national market?")
+        self.assertEqual(r.status, "INSUFFICIENT_SCHEMA")
+        self.assertIn("web can't know", r.answer)
+        self.assertEqual(data.executed, [])
 
 
 if __name__ == "__main__":

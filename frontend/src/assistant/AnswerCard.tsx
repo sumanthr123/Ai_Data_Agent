@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, CircleCheck, Copy, Download, FileSearch, Globe, Lock, Pencil, Pin, PinOff, RotateCcw, Scale, ShieldAlert, ThumbsDown, ThumbsUp, WifiOff } from 'lucide-react'
+import { AlertTriangle, Check, CircleCheck, Copy, Download, FileSearch, Globe, Lock, PanelRightOpen, Pencil, Pin, PinOff, RotateCcw, Scale, ShieldAlert, ThumbsDown, ThumbsUp, WifiOff } from 'lucide-react'
 import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { CodeBlock } from '../components/CodeBlock'
 import { Markdown } from '../components/Markdown'
@@ -17,7 +17,7 @@ const ResultChart = lazy(() => import('./ResultChart').then((m) => ({ default: m
 
 export type TurnAction =
   | { type: 'details' } | { type: 'retry' } | { type: 'council' } | { type: 'focus' }
-  | { type: 'ask'; text: string } | { type: 'prefill'; text: string } | { type: 'pin' }
+  | { type: 'ask'; text: string } | { type: 'prefill'; text: string } | { type: 'pin' } | { type: 'canvas' }
 
 export interface DatasetShape { columns: FollowupColumn[]; dateColumn: string | null }
 
@@ -318,6 +318,7 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, p
             {(r.kind ?? 'data') === 'data' && <HowIGotThis r={r} onDetails={() => act({ type: 'details' })} />}
 
             <div className="flex flex-wrap items-center gap-1 border-t border-line pt-2">
+              {r.sql && (r.kind ?? 'data') === 'data' && <ActionButton onClick={() => act({ type: 'canvas' })}><PanelRightOpen className="h-3.5 w-3.5" aria-hidden /> Open in canvas</ActionButton>}
               {r.answer && <ActionButton onClick={copySummary}><Copy className="h-3.5 w-3.5" aria-hidden /> Copy summary</ActionButton>}
               {r.sql && (r.kind ?? 'data') === 'data' && (
                 <>

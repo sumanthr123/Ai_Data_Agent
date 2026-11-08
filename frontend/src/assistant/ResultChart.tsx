@@ -31,7 +31,7 @@ async function savePng(svg: SVGSVGElement, name: string): Promise<void> {
 }
 
 /** One measure per chart (one axis); a selector switches measures. `theme` re-reads colors when it changes. */
-export function ResultChart({ result, plan, theme, onError }: { result: ResultPreview; plan: ChartPlan; theme: string; onError: (message: string) => void }) {
+export function ResultChart({ result, plan, theme, onError, height = 'h-60' }: { result: ResultPreview; plan: ChartPlan; theme: string; onError: (message: string) => void; height?: string }) {
   const [measure, setMeasure] = useState<string | null>(null)
   const box = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,7 +75,7 @@ export function ResultChart({ result, plan, theme, onError }: { result: ResultPr
           <button type="button" onClick={exportPng} className="min-h-6 rounded px-2 text-[12px] text-fg-2 hover:bg-surface-2">Save PNG</button>
         </span>
       </figcaption>
-      <div ref={box} className="h-60" role="img" aria-label={`${plan.time ? 'Line' : 'Bar'} chart of ${title}. Switch to Table for exact values.`}>
+      <div ref={box} className={height} role="img" aria-label={`${plan.time ? 'Line' : 'Bar'} chart of ${title}. Switch to Table for exact values.`}>
         <ResponsiveContainer width="100%" height="100%">
           {plan.time ? (
             <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>

@@ -27,6 +27,10 @@ The user named no comparison: compare with the previous period of the same lengt
 For "why" or "what caused", also break the change down by the one dimension most likely to explain it.
 That is settled, so don't CLARIFY about it; return READY with both periods as rows."""
 
+OWN_FIGURES = """
+This asks about the business's own figures, which the web can't know. Plan SQL from the tables (READY), or return
+INSUFFICIENT_SCHEMA saying what is missing. Don't return WEB."""
+
 ANALYST_FIX ="""Role: Analyst. Your SQL failed. Return corrected SQL for the same question.
 Shape: {"status":"READY","sql":string,"assumptions":[string],"clarifying_question":null,"missing":null}"""
 
