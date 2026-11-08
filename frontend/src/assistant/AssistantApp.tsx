@@ -190,6 +190,10 @@ export default function AssistantApp() {
   }
   const pending = a.active?.state?.pending_clarification
   useEffect(() => { if (pending) box.current?.focus() }, [pending])
+  // The home screen renders a new composer, so focus it after render; desktop only, so a phone keyboard doesn't pop up.
+  useEffect(() => {
+    if (home && loaded && window.matchMedia('(min-width: 768px)').matches) requestAnimationFrame(() => box.current?.focus())
+  }, [home, loaded, a.activeId])
   const pills = topics(chosenSets)
   const dismissCoach = () => { setCoach(false); writeLocal(COACH_KEY, 'seen') }
   const ThemeIcon = theme.pref === 'system' ? Monitor : theme.pref === 'light' ? Sun : Moon

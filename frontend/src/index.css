@@ -56,6 +56,8 @@
 }
 
 html, body, #root { height: 100%; }
+/* The app scrolls inside its panes (thread, sidebar, canvas), never as a page: a page scroll shifts the whole layout. */
+body { overflow: hidden; }
 body {
   margin: 0;
   background: var(--bg);

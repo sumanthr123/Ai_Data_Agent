@@ -256,7 +256,7 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, p
       <section className="space-y-4">
         <h3 className="sr-only">AI Data Assistant answered</h3>
         <StepsBlock stages={turn.stages} live={live} startedAt={turn.startedAt} totalMs={r?.total_ms} />
-        {live && <div className="skeleton h-[290px] rounded-lg" aria-hidden />}
+        {live && turn.stages.some((s) => s.stage === 'context') && <div className="skeleton h-[290px] rounded-lg" aria-hidden />}  {/* data path only: a web answer has no chart */}
         {problem && <ProblemBlock p={problem} onAction={act} />}
 
         {r && r.status !== 'ERROR' && (
