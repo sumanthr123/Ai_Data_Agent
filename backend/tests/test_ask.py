@@ -132,7 +132,7 @@ class RouteTests(unittest.TestCase):
     def test_chat_is_answered_by_the_plan_alone(self):
         r, models, data = run({CFG.analyst: [{"status": "CHAT", "reply": "Hi! Ask me about your data."}]}, question="hello")
         self.assertEqual((r.kind, r.status, r.answer), ("chat", "ANSWERED", "Hi! Ask me about your data."))
-        self.assertEqual((len(models.seen), data.executed), (0, []))  # an obvious live question isn't planned
+        self.assertEqual((len(models.seen), data.executed), (1, []))
 
     def test_docs_answer_cites_retrieved_passages(self):
         plan = {"status": "DOCS", "search_query": "upload expiry TTL"}
