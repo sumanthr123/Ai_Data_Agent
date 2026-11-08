@@ -9,12 +9,15 @@ SRC=$HOME_W/consensus-agent-src BACKUPS=$HOME_W/consensus-agent-releases
 new=$(mktemp -d) old=$(mktemp -d); trap 'rm -rf "$new" "$old"' EXIT
 backup=${KEEP_BACKUP:-pre-$(date +%Y%m%d-%H%M%S)}
 
+# Workspace calls from a laptop time out now and then; retry a step before giving up (nothing changes until the upload).
+retry() { for attempt in 1 2 3; do "$@" && return 0; echo "Attempt $attempt failed: $*"; sleep 15; done; return 1; }
+
 git archive HEAD | tar -x -C "$new"
 rm -rf "$new/data"  # the data bundle has its own deploy
-databricks workspace export-dir "$DEV/frontend/dist" "$new/frontend/dist"
+retry databricks workspace export-dir "$DEV/frontend/dist" "$new/frontend/dist"
 if [ -z "${KEEP_BACKUP:-}" ]; then
-  databricks workspace export-dir "$SRC" "$old"
-  databricks workspace import-dir "$old" "$BACKUPS/$backup"
+  retry databricks workspace export-dir "$SRC" "$old"
+  retry databricks workspace import-dir "$old" "$BACKUPS/$backup" --overwrite
 fi
 echo "Backup: $BACKUPS/$backup"
 for attempt in 1 2 3; do
