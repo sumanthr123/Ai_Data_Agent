@@ -32,7 +32,7 @@ from backend.ask.contracts import (
     CouncilCandidate, CouncilInfo, DeterministicCheck, Issue, JudgeVerdict, ModelCall, ProposalPayload, ResultPreview, ReviewPayload, SourceInfo, StageEvent,
     Verification, WebSource,
 )
-from backend.ask.models import ModelClient
+from backend.ask.models import ModelClient, ModelThrottled
 from backend.ask.registry import Registry
 from backend.ask.settings import AskSettings, model_family
 from backend.ask.tracing import Tracer, redact
@@ -51,7 +51,9 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class ModelUnavailable(RuntimeError):
-    pass
+    def __init__(self, message: str, code: str = "model_unavailable") -> None:
+        super().__init__(message)
+        self.code = code  # "timeout", "rate_limited" or "model_unavailable"
 
 
 @dataclass
@@ -93,6 +95,7 @@ WEB_OFF = ("Live web search is turned off, so I can't answer questions about cur
 _CHANGE = re.compile(r"\b(drop|dropped|fall|fell|decline|declined|decrease|decreased|dip|dipped|rise|rose|increase|increased|grow|grew|growth|jump|jumped|spike|spiked)\b", re.I)
 _COMPARISON = re.compile(r"\b(previous|prior|same month|last year|preceding|compar\w*|reference period|baseline)\b", re.I)
 _COURTESY = re.compile(r"\s*(thanks|thank you|thx|cheers|hi|hello|hey|bye|goodbye|ok|okay|great)\b", re.I)
+_UC_DENIED = re.compile(r"\b(INSUFFICIENT_PERMISSIONS|PERMISSION_DENIED)\b")  # Databricks error classes, not free text
 _METRIC = re.compile(r"\b(metric|measure)s?\b", re.I)
 _OWN_FIGURE = re.compile(r"\b(our|my)\s+(\w+\s+){0,2}(spend|spending|expenses?|costs?|budget|payroll|salar(y|ies)|revenue|sales|profits?|margins?|income|headcount)\b", re.I)
 _HAS_CODE = re.compile(r"\bselect\b[\s\S]+\bfrom\b|\bdef \w+\(|\bspark\.\w+|```", re.I)
@@ -173,8 +176,9 @@ class Orchestrator:
                 response = self._partial("BUDGET_EXHAUSTED", f"{exc} The answer couldn't be completed and verified.", state)
             except ModelUnavailable as exc:
                 self.verification.analyst = "FAILED"
-                response = self._partial("ERROR", f"The Analyst model couldn't answer: {str(exc).rstrip('.')}.", state)
+                response = self._partial("ERROR", f"The Analyst model couldn't answer: {str(exc).rstrip('.')}.", state, exc.code)
             response.total_ms = int((time.monotonic() - started) * 1000)
+            response.trace_id = self.tracer.trace_id()
             root.set_outputs({"status": response.status, "reviewed": response.verification.reviewed,
                               "tokens": response.verification.total_tokens, "calls": response.verification.total_model_calls})
         return response
@@ -189,12 +193,12 @@ class Orchestrator:
         if not all(readable):
             # Unregistered tables and other users' uploads look the same: neither is acknowledged to exist.
             self._event("context", "failed", mark, "dataset not available to this user")
-            return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)))
+            return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)), error_code="not_found")
         try:
             tables = await asyncio.to_thread(self.data.describe, datasets)
         except Exception as exc:
             self._event("context", "failed", mark, plain_error(exc))
-            return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)))
+            return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)), error_code="not_found")
         self.versions = {t.full_name.lower(): t.updated_at or "" for t in tables}
         self.meta = {t.full_name.lower(): t.columns for t in tables}
         described = [await self._describe(t) for t in tables]
@@ -236,7 +240,9 @@ class Orchestrator:
         if plan.status == "CLARIFY" and plan.clarifying_question:
             self._event("clarify", "succeeded", mark)
             state.pending_clarification, state.last_question = plan.clarifying_question, question
-            return self._finish("NEEDS_CLARIFICATION", state, clarifying_question=plan.clarifying_question, assumptions=plan.assumptions)
+            options = [o.strip()[:80] for o in plan.clarifying_options if o.strip()][:4]
+            return self._finish("NEEDS_CLARIFICATION", state, clarifying_question=plan.clarifying_question, assumptions=plan.assumptions,
+                                clarifying_options=options if len(options) >= 2 else [])
         if plan.status == "CHAT" and not _COURTESY.match(question) and len(knowledge.search(question)) >= 2:  # several doc sections match: docs, not chat
             plan.status, plan.search_query = "DOCS", question
         if plan.status in ("CHAT", "DOCS") and _HAS_CODE.search(question):  # pasted code is a code question, whatever the planner said
@@ -270,7 +276,8 @@ class Orchestrator:
                 fix_context = {**context, "failed_sql": sql, "error": str(exc)[:500]}
                 fix = await self._call("analyst", "fix_sql", prompts.ANALYST_FIX, self._user(fix_context, question), AnalystPlan, cfg.analyst_max_out)
                 if not fix.sql:
-                    return self._finish("ERROR", state, answer=f"The query couldn't run: {exc}")
+                    code = "permission" if _UC_DENIED.search(str(exc)) else "query_failed"
+                    return self._finish("ERROR", state, answer=f"The query couldn't run: {exc}", error_code=code)
                 sql, assumptions = fix.sql, fix.assumptions or assumptions
 
         if req.council:
@@ -609,10 +616,10 @@ class Orchestrator:
                 result = await asyncio.wait_for(asyncio.to_thread(self.llm.chat, endpoint, system, user, max_out), self.cfg.model_timeout_s)
             except asyncio.TimeoutError:
                 self._record(ModelCall(role=role, purpose=purpose, endpoint=endpoint, status="timed_out", latency_ms=self.cfg.model_timeout_s * 1000))
-                raise ModelUnavailable(f"{endpoint} timed out after {self.cfg.model_timeout_s}s") from None
+                raise ModelUnavailable(f"{endpoint} timed out after {self.cfg.model_timeout_s}s", "timeout") from None
             except Exception as exc:
                 self._record(ModelCall(role=role, purpose=purpose, endpoint=endpoint, status="failed", error=plain_error(exc)))
-                raise ModelUnavailable(f"{endpoint}: {plain_error(exc)}") from exc
+                raise ModelUnavailable(f"{endpoint}: {plain_error(exc)}", "rate_limited" if isinstance(exc, ModelThrottled) else "model_unavailable") from exc
             self.budget.spend(result.total_tokens)
             price = self.cfg.prices.get(endpoint)
             call = ModelCall(role=role, purpose=purpose, endpoint=endpoint, status="ok", latency_ms=result.latency_ms,
@@ -726,7 +733,7 @@ class Orchestrator:
             found = await asyncio.to_thread(self.search, query)
         except Exception as exc:
             self._event("web_search", "failed", mark, plain_error(exc))
-            return self._finish("ERROR", state, kind="web", answer=f"Live search didn't work, so I won't guess: {plain_error(exc)}")
+            return self._finish("ERROR", state, kind="web", answer=f"Live search didn't work, so I won't guess: {plain_error(exc)}", error_code="web_unavailable")
         answer, truncated = grounding.cap_words(found["summary"], self.cfg.max_answer_words)
         answer, uncited = clean_citations(answer, len(found["sources"]))
         self.verification.checks = [DeterministicCheck(
@@ -770,13 +777,13 @@ class Orchestrator:
             note = grounding.table_answer(self.execution.result, note + "\n\nThe executed result is below so you can judge it yourself.")
         return self._finish("UNRESOLVED", state, question=question, answer=note)
 
-    def _partial(self, status: Literal["BUDGET_EXHAUSTED", "ERROR"], reason: str, state: ConversationState) -> AskResponse:
+    def _partial(self, status: Literal["BUDGET_EXHAUSTED", "ERROR"], reason: str, state: ConversationState, code: str | None = None) -> AskResponse:
         """Stopped early: show the executed result (if any) as-is rather than an unchecked write-up."""
         if not self.execution:
-            return self._finish(status, state, answer=reason)
+            return self._finish(status, state, answer=reason, error_code=code)
         if self.proposal is None or self.proposal.sql != self.executed_sql:  # e.g. the redraft for a fixed query failed
             self.proposal = ProposalPayload(query_id=uuid.uuid4().hex[:12], sql=self.executed_sql, draft_answer="")
-        return self._finish(status, state, answer=grounding.table_answer(self.execution.result, f"{reason} The executed result is below, unreviewed."))
+        return self._finish(status, state, answer=grounding.table_answer(self.execution.result, f"{reason} The executed result is below, unreviewed."), error_code=code)
 
     def _finish(self, status: str, state: ConversationState, question: str | None = None, **fields: Any) -> AskResponse:
         v = self.verification

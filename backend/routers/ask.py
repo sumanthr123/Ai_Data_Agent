@@ -19,7 +19,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.ask.cache import ResultCache, auth_key
 from backend.ask import profiling, sql_guard
-from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, ExportRequest, Identity, ModelOption, UploadResult
+from backend.ask.contracts import AskRequest, AskResponse, AuthContext, DatasetRecord, ExportRequest, FeedbackRequest, Identity, ModelOption, UploadResult
 from backend.ask.ingest import IngestionService, UploadRejected, user_key
 from backend.ask.models import ServingClient, model_workspace_client
 from backend.ask.orchestrator import DatabricksData, Orchestrator
@@ -237,14 +237,43 @@ async def export_csv(body: ExportRequest, request: Request) -> Response:
         raise HTTPException(422, str(exc)) from exc
     except QueryError as exc:
         raise HTTPException(502, str(exc)) from exc
+    headers = {"X-Row-Count": str(run.result.row_count), "X-Truncated": str(run.result.truncated).lower()}
+    if body.format == "xlsx":
+        return Response(_xlsx(run.result.columns, run.result.rows), headers={**headers, "Content-Disposition": 'attachment; filename="query-result.xlsx"'},
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     out = io.StringIO()
     writer = csv.writer(out)
     writer.writerow(run.result.columns)
     for row in run.result.rows:
         writer.writerow([_cell(row.get(c)) for c in run.result.columns])
-    headers = {"Content-Disposition": 'attachment; filename="query-result.csv"', "X-Row-Count": str(run.result.row_count),
-               "X-Truncated": str(run.result.truncated).lower()}
-    return Response(out.getvalue(), media_type="text/csv; charset=utf-8", headers=headers)
+    return Response(out.getvalue(), media_type="text/csv; charset=utf-8", headers={**headers, "Content-Disposition": 'attachment; filename="query-result.csv"'})
+
+
+def _xlsx(columns: list[str], rows: list[dict]) -> bytes:
+    """Numbers stay numbers; text goes through _cell, so nothing a query returns can become a formula."""
+    import openpyxl
+
+    book = openpyxl.Workbook(write_only=True)
+    sheet = book.create_sheet("result")
+    sheet.append(columns)
+    for row in rows:
+        sheet.append([None if v is None else v if isinstance(v, (int, float)) and not isinstance(v, bool) else _cell(v) for v in (row.get(c) for c in columns)])
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
+
+
+@router.post("/ask/feedback")
+async def feedback(body: FeedbackRequest, request: Request) -> dict[str, bool]:
+    """Thumbs up or down on an answer's trace. The source is the hashed user key, never the email."""
+    try:
+        await asyncio.to_thread(_tracer.log_feedback, body.trace_id, body.helpful, body.reason, user_key(_principal(request)))
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Feedback not recorded")
+        raise HTTPException(502, f"Feedback wasn't recorded: {plain_error(exc)}") from exc
+    return {"recorded": True}
 
 
 def _cell(value) -> str:

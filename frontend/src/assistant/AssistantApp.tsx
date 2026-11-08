@@ -8,6 +8,7 @@ import { DatasetPanel } from './DatasetPanel'
 import { EvidenceDrawer } from './EvidenceDrawer'
 import { humanize, isMeasure, isTimeLike, modelLabel, relativeTime } from './format'
 import type { Dataset, Identity, ModelOption, Turn } from './types'
+import { usePins } from './pins'
 import { useAssistant } from './useAssistant'
 
 const MODEL_KEY = 'assistant.model'
@@ -51,6 +52,8 @@ export default function AssistantApp() {
   const [loaded, setLoaded] = useState(false)
   const defaults = useMemo(() => datasets.filter((d) => d.kind === 'shared').slice(0, 1).map((d) => d.dataset), [datasets])
   const a = useAssistant(defaults)
+  const pins = usePins()
+  const pinnedIds = useMemo(() => new Set(pins.pins.map((p) => p.id)), [pins.pins])
   const [draft, setDraft] = useState('')
   const [navOpen, setNavOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -123,14 +126,15 @@ export default function AssistantApp() {
     box.current?.focus()
   }
   // Stable across renders so memoized cards don't re-render; reads the latest values through the ref.
-  const latest = useRef({ submit, ask: a.ask, usable, chosen })
-  latest.current = { submit, ask: a.ask, usable, chosen }
+  const latest = useRef({ submit, ask: a.ask, usable, chosen, pin: pins.toggle })
+  latest.current = { submit, ask: a.ask, usable, chosen, pin: pins.toggle }
   const onTurnAction = useCallback((turn: Turn, action: TurnAction) => {
     const l = latest.current
     if (action.type === 'details') { setEvidenceId(turn.id); setDrawerOpen(true) }
     else if (action.type === 'retry') l.submit(turn.question)
     else if (action.type === 'council') l.ask(turn.question, true, l.usable, l.chosen)
     else if (action.type === 'ask') l.submit(action.text)
+    else if (action.type === 'pin') l.pin(turn)
     else if (action.type === 'prefill') { setDraft(action.text); requestAnimationFrame(() => box.current?.focus()) }
     else box.current?.focus()
   }, [])
@@ -164,6 +168,8 @@ export default function AssistantApp() {
     <DatasetPanel datasets={datasets} selected={selected} onSelect={a.setDatasets} onDatasetsChanged={refresh}
       conversations={a.conversations} activeId={a.activeId} onOpen={(id) => { a.setActiveId(id); setNavOpen(false) }}
       onNew={() => { a.start(selected.length ? selected : defaults); setNavOpen(false); box.current?.focus() }} onDelete={a.remove} onRename={a.rename}
+      pins={pins.pins} onRemovePin={pins.remove}
+      onRunPin={(p) => { a.ask(p.question, false, p.datasets.filter((d) => visible.has(d)).length ? p.datasets.filter((d) => visible.has(d)) : defaults, chosen, true); setNavOpen(false) }}
       conversationId={a.activeId ?? 'unsorted'} />
   )
 
@@ -259,7 +265,7 @@ export default function AssistantApp() {
                 </section>
               )}
               {turns.map((t, i) => (
-                <AnswerCard key={t.id} turn={t} live={a.busy && i === turns.length - 1} theme={theme.resolved} shape={shape} onAction={onTurnAction} />
+                <AnswerCard key={t.id} turn={t} live={a.busy && i === turns.length - 1} theme={theme.resolved} shape={shape} pinned={pinnedIds.has(t.id)} onAction={onTurnAction} />
               ))}
             </div>
           </div>

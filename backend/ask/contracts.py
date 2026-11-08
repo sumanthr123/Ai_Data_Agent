@@ -19,6 +19,7 @@ class AnalystPlan(BaseModel):
     reply: str | None = None  # CHAT only
     assumptions: list[str] = []
     clarifying_question: str | None = None
+    clarifying_options: list[str] = []  # 2-4 short readings the user can pick instead of typing
     missing: str | None = None
 
 
@@ -98,6 +99,20 @@ class ModelOption(BaseModel):
 class ExportRequest(BaseModel):
     sql: str = Field(min_length=1, max_length=20000)
     datasets: list[str] = []
+    format: Literal["csv", "xlsx"] = "csv"
+
+
+FeedbackReason = Literal["wrong_numbers", "wrong_data", "misunderstood", "too_slow", "other"]
+
+
+class FeedbackRequest(BaseModel):
+    """Fixed reasons and no free text, so feedback holds nothing personal that the GDPR job would need to erase."""
+    trace_id: str = Field(min_length=1, max_length=100, pattern=r"^[A-Za-z0-9_-]+$")
+    helpful: bool
+    reason: FeedbackReason | None = None
+
+
+ErrorCode = Literal["not_found", "permission", "rate_limited", "timeout", "model_unavailable", "query_failed", "web_unavailable"]
 
 
 class DeterministicCheck(BaseModel):
@@ -223,6 +238,9 @@ class CouncilInfo(BaseModel):
 
 class AskResponse(BaseModel):
     request_id: str = ""
+    trace_id: str | None = None  # MLflow trace, set when tracing is on; feedback attaches to it
+    error_code: ErrorCode | None = None  # set with status ERROR, so the UI shows the right state without parsing text
+    clarifying_options: list[str] = []
     from_cache: bool = False  # the same question on the same data version was answered within the cache TTL
     kind: Literal["data", "web", "docs", "code", "chat"] = "data"
     status: Literal["ANSWERED", "NEEDS_CLARIFICATION", "INSUFFICIENT_SCHEMA", "UNRESOLVED", "BUDGET_EXHAUSTED", "ERROR"]

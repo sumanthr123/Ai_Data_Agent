@@ -1,9 +1,9 @@
-import { ChevronDown, Database, FileSpreadsheet, LoaderCircle, MessageSquare, Pencil, SquarePen, Trash2, Upload } from 'lucide-react'
+import { ChevronDown, Database, FileSpreadsheet, LoaderCircle, MessageSquare, Pencil, RotateCcw, SquarePen, Trash2, Upload, X } from 'lucide-react'
 import { useRef, useState, type DragEvent } from 'react'
 import { cn } from '../lib/cn'
 import { deleteUpload, uploadFile } from './api'
 import { relativeTime } from './format'
-import type { Conversation, Dataset, UploadResult } from './types'
+import type { Conversation, Dataset, Pin, UploadResult } from './types'
 
 type UploadState =
   | { phase: 'idle' }
@@ -22,10 +22,11 @@ function groupByAge(list: Conversation[]): [string, Conversation[]][] {
     ['Older', list.filter((c) => c.updatedAt < week)]]
 }
 
-export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, conversations, activeId, onOpen, onNew, onDelete, onRename, conversationId }: {
+export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, conversations, activeId, onOpen, onNew, onDelete, onRename, pins, onRunPin, onRemovePin, conversationId }: {
   datasets: Dataset[]; selected: string[]; onSelect: (names: string[]) => void; onDatasetsChanged: (select?: string) => void
   conversations: Conversation[]; activeId: string | null; onOpen: (id: string) => void; onNew: () => void; onDelete: (id: string) => void
   onRename: (id: string, title: string) => void
+  pins: Pin[]; onRunPin: (pin: Pin) => void; onRemovePin: (id: string) => void
   conversationId: string
 }) {
   const [upload, setUpload] = useState<UploadState>({ phase: 'idle' })
@@ -155,6 +156,27 @@ export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, 
           )}
         </div>
       </section>
+
+      {pins.length > 0 && (
+        <section aria-labelledby="pin-heading">
+          <h2 id="pin-heading" className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-fg-3">Pinned answers</h2>
+          <ul className="space-y-1.5">
+            {pins.map((p) => (
+              <li key={p.id} className="rounded-md border border-line p-2 text-[12.5px]">
+                <p className="font-medium text-fg">{p.question}</p>
+                {p.summary && <p className="mt-0.5 line-clamp-2 text-fg-2">{p.summary}</p>}
+                <div className="mt-1 flex items-center gap-1 text-fg-3">
+                  <span className="flex-1">Pinned {relativeTime(new Date(p.pinnedAt).toISOString())}</span>
+                  <button type="button" onClick={() => onRunPin(p)} className="inline-flex min-h-6 items-center gap-1 rounded px-1.5 text-brand hover:bg-surface-2">
+                    <RotateCcw className="h-3 w-3" aria-hidden /> Re-run on fresh data
+                  </button>
+                  <button type="button" onClick={() => onRemovePin(p.id)} aria-label={`Unpin ${p.question}`} className="rounded p-1 hover:bg-surface-2 hover:text-err"><X className="h-3.5 w-3.5" /></button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section aria-labelledby="conv-heading" className="min-h-0">
         <div className="mb-2 flex items-center justify-between px-1">

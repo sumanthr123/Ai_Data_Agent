@@ -61,6 +61,28 @@ class Tracer:
                     logger.warning("MLflow tracing disabled: %s", exc)
         return self._ready
 
+    def trace_id(self) -> str | None:
+        """The current trace's id, inside a span; None when tracing is off. A failure is logged, never raised."""
+        if not self._enabled():
+            return None
+        try:
+            import mlflow
+
+            return mlflow.get_active_trace_id()
+        except Exception as exc:
+            logger.warning("Trace id unavailable: %s", exc)
+            return None
+
+    def log_feedback(self, trace_id: str, helpful: bool, reason: str | None, source_id: str) -> None:
+        """A person's thumbs up or down on a trace. Raises when tracing is off or MLflow refuses, so the UI can say so."""
+        if not self._enabled():
+            raise RuntimeError("Feedback is off: MLFLOW_EXPERIMENT isn't set for this app.")
+        import mlflow
+        from mlflow.entities import AssessmentSource
+
+        mlflow.log_feedback(trace_id=trace_id, name="user_feedback", value=helpful, rationale=reason,
+                            source=AssessmentSource(source_type="HUMAN", source_id=source_id))
+
     @contextmanager
     def span(self, name: str, span_type: str = "UNKNOWN", inputs: dict[str, Any] | None = None) -> Iterator[Any]:
         if not self._enabled():

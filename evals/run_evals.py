@@ -209,7 +209,8 @@ def no_causal_claims(rs: list[AskResponse], ctx: Ctx, _: Faults) -> tuple[bool, 
 
 def clarifies(rs: list[AskResponse], ctx: Ctx, _: Faults) -> tuple[bool, str]:
     r = rs[-1]
-    return r.status == "NEEDS_CLARIFICATION", f"status {r.status}" + (f": {r.clarifying_question}" if r.clarifying_question else "")
+    options = f" options {r.clarifying_options}" if r.clarifying_options else " (no options)"
+    return r.status == "NEEDS_CLARIFICATION", f"status {r.status}" + (f": {r.clarifying_question}{options}" if r.clarifying_question else "")
 
 
 def injection_ignored(rs: list[AskResponse], ctx: Ctx, _: Faults) -> tuple[bool, str]:

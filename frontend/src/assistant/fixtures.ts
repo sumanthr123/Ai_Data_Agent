@@ -36,6 +36,7 @@ export const GALLERY: { title: string; note: string; turn: Turn }[] = [
     title: 'Answer: categories', note: 'Chart | Table toggle, editable filter chips, How I got this, follow-ups.',
     turn: turn('answer', 'What were total sales by region in 2017?', {
       response: response({
+        trace_id: 'tr-gallery-example',
         answer: 'West led 2017 with **$250,128.37** in sales, followed by East at $213,082.90. Total across the four regions was $733,215.26.',
         sql: REGION_SQL, filters: ["order_date >= '2017-01-01'", "order_date < '2018-01-01'"], assumptions: ['Sales are in USD after discount.'],
         result: result(['region', 'total_sales'], ['string', 'decimal(28,4)'], [
@@ -67,7 +68,7 @@ export const GALLERY: { title: string; note: string; turn: Turn }[] = [
     title: 'Clarifying question', note: 'Nothing is computed until the user answers.',
     turn: turn('clarify', 'Show me the top customers', {
       stages: [ev('context', 900), ev('generate_sql', 1900), ev('clarify', 0), ev('complete', 0)],
-      response: response({ status: 'NEEDS_CLARIFICATION', clarifying_question: 'Top customers by which measure: total sales, number of orders, or profit?' }),
+      response: response({ status: 'NEEDS_CLARIFICATION', clarifying_question: 'Top customers by which measure?', clarifying_options: ['Total sales', 'Number of orders', 'Profit'] }),
     }),
   },
   {
@@ -94,11 +95,12 @@ export const GALLERY: { title: string; note: string; turn: Turn }[] = [
   { title: 'Query failed', note: 'Business language first; the raw error is one click away.',
     turn: turn('failed', 'What were sales by sub-category last week?', { stages: [ev('context', 900), ev('generate_sql', 2000), ev('execute', 400, 'failed', 'query failed')],
       error: '[UNRESOLVED_COLUMN] A column with name `subcategory` cannot be resolved. Did you mean `sub_category`?' }) },
-  { title: 'Rate limited', note: 'One automatic retry after a visible countdown; Cancel stops it.',
-    turn: turn('busy', 'What is the profit margin by segment?', { stages: [ev('context', 900), ev('generate_sql', 600, 'failed')], error: 'databricks-gpt-oss-120b is at its rate limit or out of capacity' }) },
-  { title: 'Permission denied', note: 'Unity Catalog decides; no silent fallback.',
-    turn: turn('denied', 'Show salaries by team', { stages: [ev('context', 300, 'failed')],
-      error: `PERMISSION_DENIED: User does not have SELECT on Table 'ai_data_agent.hr.salaries'.` }) },
+  { title: 'Rate limited', note: 'error_code rate_limited: one automatic retry after a visible countdown; Cancel stops it.',
+    turn: turn('busy', 'What is the profit margin by segment?', { stages: [ev('context', 900), ev('generate_sql', 600, 'failed')],
+      response: response({ status: 'ERROR', error_code: 'rate_limited', answer: "The Analyst model couldn't answer: databricks-gpt-oss-120b is at its rate limit or out of capacity." }) }) },
+  { title: 'Permission denied', note: 'error_code permission: Unity Catalog decides; no silent fallback.',
+    turn: turn('denied', 'What is the average discount by customer?', { stages: [ev('context', 900), ev('generate_sql', 2000), ev('execute', 300, 'failed')],
+      response: response({ status: 'ERROR', error_code: 'permission', answer: "The query couldn't run: [INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table 'ai_data_agent.gold.orders'." }) }) },
   { title: 'Connection lost', note: 'The steps that finished are kept.',
     turn: turn('dropped', 'Which state had the most orders?', { stages: [ev('context', 900), ev('generate_sql', 2000), ev('execute', 0, 'skipped')], error: 'The connection closed before an answer arrived.' }) },
   { title: 'Stopped by you', note: 'Esc or Stop; nothing further runs on the warehouse.',

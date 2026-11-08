@@ -2,7 +2,7 @@ import { Download, LoaderCircle, X } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { CodeBlock } from '../components/CodeBlock'
 import { cn } from '../lib/cn'
-import { downloadCsv } from './api'
+import { downloadResult } from './api'
 import { layoutSql, relativeTime } from './format'
 import { StatusIcon } from './StatusSteps'
 import type { Check, Turn, Verification } from './types'
@@ -101,7 +101,7 @@ export function EvidenceDrawer({ turn, onClose }: { turn: Turn | null; onClose: 
     setDownloading(true)
     setDownloadError(null)
     try {
-      await downloadCsv(r.sql, turn!.datasets)
+      await downloadResult(r.sql, turn!.datasets, 'csv')
     } catch (err) {
       setDownloadError((err as Error).message)
     } finally {

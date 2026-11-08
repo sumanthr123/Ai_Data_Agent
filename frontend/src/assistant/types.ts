@@ -56,8 +56,11 @@ export interface CouncilInfo {
 }
 export interface DocSource { n: number; file: string; section: string; excerpt: string }
 export interface CodeInfo { language: 'sql' | 'python' | 'other'; code: string; validation: 'validated' | 'syntax_ok' | 'not_run' | 'failed' | 'untested'; detail: string; destructive: boolean }
+export type ErrorCode = 'not_found' | 'permission' | 'rate_limited' | 'timeout' | 'model_unavailable' | 'query_failed' | 'web_unavailable'
+export type FeedbackReason = 'wrong_numbers' | 'wrong_data' | 'misunderstood' | 'too_slow' | 'other'
+export interface Pin { id: string; question: string; datasets: string[]; summary: string; pinnedAt: number }
 export interface AskResponse {
-  request_id?: string; from_cache?: boolean; data_as_of?: Record<string, string>; freshness_unmet?: boolean
+  request_id?: string; trace_id?: string | null; error_code?: ErrorCode | null; clarifying_options?: string[]; from_cache?: boolean; data_as_of?: Record<string, string>; freshness_unmet?: boolean
   kind: 'data' | 'web' | 'docs' | 'code' | 'chat'
   status: AskStatus; answer: string; answer_truncated: boolean; clarifying_question: string | null; hypotheses: string[]
   assumptions: string[]; query_id: string | null; sql: string | null; filters: string[]; result: ResultPreview | null

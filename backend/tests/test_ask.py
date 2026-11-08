@@ -673,5 +673,77 @@ class GuardrailTests(unittest.TestCase):
         self.assertEqual(rows, [{"postal_code": "01234", "n": 7}])
 
 
+
+class ErrorCodeTests(unittest.TestCase):
+    """The UI picks its error state from error_code, set where the failure happens, never by parsing the message."""
+
+    def test_rate_limit_is_reported_as_rate_limited(self):
+        from backend.ask.models import ModelThrottled
+
+        r, _, _ = run({CFG.analyst: [ModelThrottled(f"{CFG.analyst} is at its rate limit or out of capacity")]})
+        self.assertEqual((r.status, r.error_code), ("ERROR", "rate_limited"))
+
+    def test_unity_catalog_denial_is_reported_as_permission(self):
+        class Denied(FakeData):
+            def execute(self, sql: str) -> Execution:
+                if sql.startswith("SELECT COUNT(*) AS n, COUNT("):
+                    return super().execute(sql)
+                raise QueryError("Warehouse: [INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table")
+
+        r, _, _ = run({CFG.analyst: [PLAN, {"status": "READY", "sql": None}]}, data=Denied())
+        self.assertEqual((r.status, r.error_code), ("ERROR", "permission"))
+
+    def test_other_query_failures_are_query_failed(self):
+        bad = {**PLAN, "sql": f"SELECT nope FROM {TABLE}"}
+        r, _, _ = run({CFG.analyst: [bad, {"status": "READY", "sql": None}]})
+        self.assertEqual((r.status, r.error_code), ("ERROR", "query_failed"))
+
+    def test_unknown_dataset_is_not_found(self):
+        r, _, _ = run({}, question="q", state=ConversationState(active_datasets=["ai_data_agent.hr.salaries"]))
+        self.assertEqual((r.status, r.error_code), ("ERROR", "not_found"))
+
+    def test_answers_carry_no_error_code(self):
+        r, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]})
+        self.assertEqual((r.status, r.error_code), ("ANSWERED", None))
+
+
+class ClarifyingOptionTests(unittest.TestCase):
+    def test_options_are_passed_through_capped_at_four(self):
+        plan = {"status": "CLARIFY", "clarifying_question": "Top customers by which measure?", "clarifying_options": ["Sales", "Orders", "Profit", "Units", "Margin"]}
+        r, _, _ = run({CFG.analyst: [plan]}, question="Show me the top customers")
+        self.assertEqual((r.status, r.clarifying_options), ("NEEDS_CLARIFICATION", ["Sales", "Orders", "Profit", "Units"]))
+
+    def test_a_single_option_is_dropped(self):
+        plan = {"status": "CLARIFY", "clarifying_question": "Which year?", "clarifying_options": ["2017"]}
+        r, _, _ = run({CFG.analyst: [plan]}, question="Show me the best month")
+        self.assertEqual(r.clarifying_options, [])
+
+
+class ExportAndFeedbackTests(unittest.TestCase):
+    def test_xlsx_export_keeps_numbers_and_neutralizes_formulas(self):
+        import io
+
+        import openpyxl
+
+        from backend.routers.ask import _xlsx
+
+        book = openpyxl.load_workbook(io.BytesIO(_xlsx(["name", "sales"], [{"name": "=HYPERLINK(\"x\")", "sales": 12.5}, {"name": None, "sales": 3}])))
+        rows = list(book.active.iter_rows(values_only=True))
+        self.assertEqual(rows[0], ("name", "sales"))
+        self.assertEqual(rows[1], ("'=HYPERLINK(\"x\")", 12.5))
+        self.assertEqual(rows[2], (None, 3))
+
+    def test_feedback_accepts_only_fixed_reasons(self):
+        from pydantic import ValidationError
+
+        from backend.ask.contracts import FeedbackRequest
+
+        self.assertEqual(FeedbackRequest(trace_id="tr-1", helpful=False, reason="wrong_numbers").reason, "wrong_numbers")
+        with self.assertRaises(ValidationError):
+            FeedbackRequest(trace_id="tr-1", helpful=False, reason="Claire Gute's numbers are wrong")
+        with self.assertRaises(ValidationError):
+            FeedbackRequest(trace_id="tr 1; drop", helpful=True)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -70,9 +70,10 @@ export function useAssistant(defaultDatasets: string[]) {
   }, [activeId, start, update])
 
   /** `datasets`: what's selected and still available; an expired upload in the saved list would fail the question. */
-  const ask = useCallback(async (question: string, council = false, datasets?: string[], model: string | null = null) => {
+  /** `fresh`: start a new conversation for it (re-running a pinned answer must not join the open one). */
+  const ask = useCallback(async (question: string, council = false, datasets?: string[], model: string | null = null, fresh = false) => {
     if (busy || !question.trim()) return
-    const conversation = active ?? start(datasets)
+    const conversation = fresh || !active ? start(datasets) : active
     const use = datasets ?? conversation.datasets
     const changed = use.join() !== conversation.datasets.join()
     const state = changed && conversation.state ? { ...conversation.state, active_datasets: use, applied_filters: [], last_sql: null } : conversation.state

@@ -1,23 +1,23 @@
-import { AlertTriangle, Check, CircleCheck, Copy, Download, FileSearch, Globe, Lock, Pencil, RotateCcw, Scale, ShieldAlert, WifiOff } from 'lucide-react'
+import { AlertTriangle, Check, CircleCheck, Copy, Download, FileSearch, Globe, Lock, Pencil, Pin, PinOff, RotateCcw, Scale, ShieldAlert, ThumbsDown, ThumbsUp, WifiOff } from 'lucide-react'
 import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { CodeBlock } from '../components/CodeBlock'
 import { Markdown } from '../components/Markdown'
 import { SourceList } from '../components/SourceList'
 import { cn } from '../lib/cn'
 import { CodeAnswer, CouncilView, DocSources, KindBadge, ModelsUsed } from './AnswerParts'
-import { downloadCsv } from './api'
+import { downloadResult, sendFeedback } from './api'
 import { chartPlan, kpiOf } from './chartPlan'
 import { fmtCell, humanize, layoutSql, relativeTime } from './format'
 import { followups, type FollowupColumn } from './followups'
 import { ResultTable } from './ResultTable'
 import { StatusSteps } from './StatusSteps'
-import type { AskResponse, Turn } from './types'
+import type { AskResponse, ErrorCode, FeedbackReason, Turn } from './types'
 
 const ResultChart = lazy(() => import('./ResultChart').then((m) => ({ default: m.ResultChart })))  // recharts loads with the first chart
 
 export type TurnAction =
   | { type: 'details' } | { type: 'retry' } | { type: 'council' } | { type: 'focus' }
-  | { type: 'ask'; text: string } | { type: 'prefill'; text: string }
+  | { type: 'ask'; text: string } | { type: 'prefill'; text: string } | { type: 'pin' }
 
 export interface DatasetShape { columns: FollowupColumn[]; dateColumn: string | null }
 
@@ -27,12 +27,25 @@ const PERMISSION = /permission|not authori[sz]ed|access denied|insufficient[_ ]p
 const BUSY = /rate.?limit|throttl|\b429\b|too many requests|busy|capacity/i
 const CONNECTION = /connection (closed|lost|reset)|network|failed to fetch|load failed/i
 
+const CODES: Record<ErrorCode, Omit<Problem, 'technical'>> = {
+  not_found: { kind: 'permission', title: "This data isn't available to you", body: "It doesn't exist, or Unity Catalog doesn't let you read it. Copy the details for the data owner, or pick another dataset." },
+  permission: { kind: 'permission', title: "You don't have access to this data", body: 'Access is controlled by Unity Catalog. Copy the details below and send them to the data owner, or try a question about data you can see.' },
+  rate_limited: { kind: 'busy', title: 'The service is busy', body: 'A model is at its rate limit right now.' },
+  timeout: { kind: 'busy', title: 'That took too long', body: 'A model didn\'t answer in time.' },
+  model_unavailable: { kind: 'failed', title: 'A model is unavailable', body: 'The model that writes the SQL could not be reached. Re-run, or pick another model below.' },
+  query_failed: { kind: 'failed', title: "The query couldn't run", body: 'The SQL failed on the warehouse even after one correction. The steps that finished are kept above.' },
+  web_unavailable: { kind: 'failed', title: 'Live search failed', body: 'The web search could not be completed, so nothing was guessed.' },
+}
+const byCode = (code: ErrorCode, raw: string): Problem => ({ ...CODES[code], technical: raw })
+
 /** Business language first; the raw message stays one click away. */
 export function problemOf(turn: Turn): Problem | null {
   const r = turn.response
   if (turn.cancelled) return { kind: 'cancelled', title: 'Stopped by you', body: 'Nothing further ran on the warehouse. The steps that finished are kept above.', technical: '' }
   const raw = turn.error ?? (r?.status === 'ERROR' ? r.answer : '')
   if (!raw) return null
+  if (r?.error_code) return byCode(r.error_code, raw)
+  // No response (the request itself failed): only the transport error text is available.
   if (PERMISSION.test(raw)) return { kind: 'permission', title: "You don't have access to this data", body: 'Access is controlled by Unity Catalog. Copy the details below and send them to the data owner, or try a question about data you can see.', technical: raw }
   if (BUSY.test(raw)) return { kind: 'busy', title: 'The service is busy', body: 'A model or the SQL warehouse is at its limit right now.', technical: raw }
   if (CONNECTION.test(raw)) return { kind: 'connection', title: 'Connection lost', body: 'The answer stopped arriving. Re-run asks the question again.', technical: raw }
@@ -179,9 +192,42 @@ function HowIGotThis({ turn, r, onDetails }: { turn: Turn; r: AskResponse; onDet
   )
 }
 
+const REASONS: [FeedbackReason, string][] = [['wrong_numbers', 'Wrong numbers'], ['wrong_data', 'Wrong data or table'], ['misunderstood', 'Misunderstood the question'], ['too_slow', 'Too slow'], ['other', 'Other']]
+
+/** Thumbs up or down, recorded on the answer's trace. Disabled until the trace id arrives; no free text is collected. */
+function Feedback({ traceId }: { traceId: string | null | undefined }) {
+  const [state, setState] = useState<'idle' | 'reasons' | 'sending' | 'done'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const send = (helpful: boolean, reason: FeedbackReason | null) => {
+    if (!traceId) return
+    setState('sending')
+    setError(null)
+    sendFeedback(traceId, helpful, reason).then(() => setState('done'), (err: Error) => { setState('idle'); setError(err.message) })
+  }
+  const off = !traceId
+  const why = off ? 'Feedback is unavailable: this answer has no trace to attach it to.' : undefined
+  if (state === 'done') return <span className="text-[12.5px] text-fg-3" role="status">Thanks, feedback recorded</span>
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {state === 'reasons' ? (
+        <span role="group" aria-label="What was wrong?" className="inline-flex flex-wrap items-center gap-1">
+          {REASONS.map(([value, label]) => <ActionButton key={value} onClick={() => send(false, value)}>{label}</ActionButton>)}
+          <ActionButton onClick={() => setState('idle')}>Cancel</ActionButton>
+        </span>
+      ) : (
+        <>
+          <span title={why}><ActionButton onClick={() => send(true, null)} label="Helpful" disabled={off || state === 'sending'}><ThumbsUp className="h-3.5 w-3.5" aria-hidden /></ActionButton></span>
+          <span title={why}><ActionButton onClick={() => setState('reasons')} label="Not helpful" disabled={off || state === 'sending'}><ThumbsDown className="h-3.5 w-3.5" aria-hidden /></ActionButton></span>
+        </>
+      )}
+      {error && <span className="text-[12px] text-err" role="alert">Feedback not recorded: {error}</span>}
+    </span>
+  )
+}
+
 /** Memoized: typing in the composer or a stage event on the live turn doesn't re-render earlier answers. */
-export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, onAction }: {
-  turn: Turn; live: boolean; theme: string; shape: DatasetShape; onAction: (turn: Turn, action: TurnAction) => void
+export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, pinned = false, onAction }: {
+  turn: Turn; live: boolean; theme: string; shape: DatasetShape; pinned?: boolean; onAction: (turn: Turn, action: TurnAction) => void
 }) {
   const act = (a: TurnAction) => onAction(turn, a)
   const r = turn.response
@@ -193,7 +239,8 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, o
   const asOf = r?.sources.find((s) => s.kind === 'shared')?.updated_at ?? null
 
   const copySummary = () => r && navigator.clipboard.writeText(r.answer).then(() => setNote('Summary copied'), (err: Error) => setNote(`Copy failed: ${err.message}`))
-  const exportCsv = () => r?.sql && downloadCsv(r.sql, turn.datasets).then(() => setNote('CSV downloaded'), (err: Error) => setNote(`Export failed: ${err.message}`))
+  const exportAs = (format: 'csv' | 'xlsx') => r?.sql && downloadResult(r.sql, turn.datasets, format)
+    .then(() => setNote(`${format.toUpperCase()} downloaded`), (err: Error) => setNote(`Export failed: ${err.message}`))
 
   return (
     <article className="space-y-2">
@@ -211,7 +258,15 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, o
               <div className="space-y-2">
                 <p className="text-[15px] text-fg">{r.clarifying_question}</p>
                 <p className="text-[13px] text-fg-2">Nothing is computed until you choose.</p>
-                <button type="button" onClick={() => act({ type: 'focus' })} className="min-h-8 rounded-md border border-line-strong px-3 text-[13px] text-fg hover:bg-surface-2">Answer in the box below</button>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-label="Choose an interpretation">
+                  {(r.clarifying_options ?? []).map((o) => (
+                    <button key={o} type="button" onClick={() => act({ type: 'ask', text: o })}
+                      className="min-h-8 rounded-md border border-line-strong bg-surface-2 px-3 text-[13px] text-fg hover:border-brand">{o}</button>
+                  ))}
+                  <button type="button" onClick={() => act({ type: 'focus' })} className="min-h-8 rounded-md border border-dashed border-line-strong px-3 text-[13px] text-fg-2 hover:text-fg">
+                    {r.clarifying_options?.length ? 'Something else…' : 'Answer in the box below'}
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -257,9 +312,20 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, o
 
             <div className="flex flex-wrap items-center gap-1 border-t border-line pt-2">
               {r.answer && <ActionButton onClick={copySummary}><Copy className="h-3.5 w-3.5" aria-hidden /> Copy summary</ActionButton>}
-              {r.sql && (r.kind ?? 'data') === 'data' && <ActionButton onClick={exportCsv}><Download className="h-3.5 w-3.5" aria-hidden /> Export CSV</ActionButton>}
+              {r.sql && (r.kind ?? 'data') === 'data' && (
+                <>
+                  <ActionButton onClick={() => exportAs('csv')}><Download className="h-3.5 w-3.5" aria-hidden /> CSV</ActionButton>
+                  <ActionButton onClick={() => exportAs('xlsx')}><Download className="h-3.5 w-3.5" aria-hidden /> XLSX</ActionButton>
+                </>
+              )}
+              {r.status === 'ANSWERED' && (
+                <ActionButton onClick={() => act({ type: 'pin' })} label={pinned ? 'Unpin answer' : 'Pin answer'}>
+                  {pinned ? <PinOff className="h-3.5 w-3.5" aria-hidden /> : <Pin className="h-3.5 w-3.5" aria-hidden />} {pinned ? 'Unpin' : 'Pin'}
+                </ActionButton>
+              )}
               <ActionButton onClick={() => act({ type: 'retry' })}><RotateCcw className="h-3.5 w-3.5" aria-hidden /> Re-run</ActionButton>
               {(r.kind ?? 'data') === 'data' && r.sql && !r.council && <ActionButton onClick={() => act({ type: 'council' })}><Scale className="h-3.5 w-3.5" aria-hidden /> Verify with council</ActionButton>}
+              {r.status !== 'NEEDS_CLARIFICATION' && <span className="ml-auto"><Feedback traceId={r.trace_id} /></span>}
               {note && <span className="ml-1 inline-flex items-center gap-1 text-[12px] text-fg-3" role="status"><Check className="h-3.5 w-3.5" aria-hidden />{note}</span>}
             </div>
           </div>

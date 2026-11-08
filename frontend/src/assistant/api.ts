@@ -1,4 +1,4 @@
-import type { AskResponse, ConversationState, Dataset, Identity, ModelOption, StageEvent, UploadResult } from './types'
+import type { AskResponse, ConversationState, Dataset, FeedbackReason, Identity, ModelOption, StageEvent, UploadResult } from './types'
 
 async function fail(res: Response): Promise<never> {
   let message = `${res.status} ${res.statusText}`
@@ -71,13 +71,19 @@ export async function streamAsk(question: string, datasets: string[], state: Con
   throw new Error('The connection closed before an answer arrived.')
 }
 
-export async function downloadCsv(sql: string, datasets: string[]): Promise<void> {
-  const res = await fetch('/api/ask/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sql, datasets }) })
+/** Re-runs the SQL server-side with the same checks as /api/ask and saves the full result. */
+export async function downloadResult(sql: string, datasets: string[], format: 'csv' | 'xlsx'): Promise<void> {
+  const res = await fetch('/api/ask/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sql, datasets, format }) })
   if (!res.ok) await fail(res)
   const url = URL.createObjectURL(await res.blob())
-  const a = Object.assign(document.createElement('a'), { href: url, download: 'query-result.csv' })
+  const a = Object.assign(document.createElement('a'), { href: url, download: `query-result.${format}` })
   document.body.appendChild(a)
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
+}
+
+export async function sendFeedback(traceId: string, helpful: boolean, reason: FeedbackReason | null): Promise<void> {
+  const res = await fetch('/api/ask/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trace_id: traceId, helpful, reason }) })
+  if (!res.ok) await fail(res)
 }
