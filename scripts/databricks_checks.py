@@ -72,6 +72,7 @@ def main() -> int:
     parser.add_argument("--evals", default="all", help="all, none, or comma-separated category numbers")
     parser.add_argument("--frontend", action="store_true", help="also run frontend types, lint, tests and build")
     parser.add_argument("--save-baseline", action="store_true", help="keep this gate's metrics as the release baseline")
+    parser.add_argument("--no-gate", action="store_true", help="record the run only; the gate pools the newest runs, so only the last one gates")
     parser.add_argument("--env", action="append", default=[], help="KEY=VALUE set before settings are read")
     args = parser.parse_args()
     os.environ.update(e.split("=", 1) for e in args.env)
@@ -98,7 +99,7 @@ def main() -> int:
         only = None if args.evals == "all" else {int(x) for x in args.evals.split(",")}
         _in_thread(lambda: asyncio.run(run_evals.main(only)))
         print(f"\nReport written to {root / 'evals' / 'REPORT.md'}")
-        if args.evals == "all":  # thresholds need every category
+        if args.evals == "all" and not args.no_gate:  # thresholds need every category
             from evals import gate
 
             print("\n== eval gate", flush=True)
