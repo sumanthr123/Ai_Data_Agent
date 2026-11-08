@@ -100,3 +100,5 @@ body {
   border-radius: 6px;
 }
 :where(a, button, input, select, textarea, summary, [tabindex]) { scroll-margin-bottom: 140px; }
+/* The composer card shows focus with its own border (3:1), so the textarea inside it needs no second ring. */
+#ask:focus-visible { outline: none; }

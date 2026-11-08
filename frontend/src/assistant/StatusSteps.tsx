@@ -1,4 +1,4 @@
-import { CircleCheck, CircleDashed, CircleMinus, CircleX, LoaderCircle } from 'lucide-react'
+import { ChevronRight, CircleCheck, CircleDashed, CircleMinus, CircleX, LoaderCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Stage, StageEvent, StageStatus } from './types'
 
@@ -92,7 +92,7 @@ export function StepsBlock({ stages, live, startedAt, totalMs }: { stages: Stage
         ) : (
           <span>{failed ? 'Stopped at a failed step' : `Worked for ${((totalMs ?? steps.reduce((a, s) => a + s.ms, 0)) / 1000).toFixed(0)}s`} · {done} step{done === 1 ? '' : 's'}</span>
         )}
-        <span aria-hidden className="text-fg-3 transition group-open:rotate-90">▸</span>
+        <ChevronRight aria-hidden className="h-3.5 w-3.5 text-fg-3 transition group-open:rotate-90" />
       </summary>
       <div className="mt-2 border-l border-line pl-3"><StatusSteps stages={stages} live={live} compact /></div>
     </details>

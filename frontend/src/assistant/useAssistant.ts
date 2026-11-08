@@ -54,11 +54,18 @@ export function useAssistant(defaultDatasets: string[]) {
   }, [update])
 
   const start = useCallback((datasets?: string[]) => {
+    const empty = conversations.find((c) => c.turns.length === 0)  // reuse a blank chat rather than piling up "New conversation"
+    if (empty) {
+      const reused = { ...empty, datasets: datasets ?? defaultDatasets, updatedAt: Date.now() }
+      setConversations((all) => all.map((c) => (c.id === empty.id ? reused : c)))
+      setActiveId(empty.id)
+      return reused
+    }
     const conversation = newConversation(datasets ?? defaultDatasets)
     setConversations((all) => [conversation, ...all])
     setActiveId(conversation.id)
     return conversation
-  }, [defaultDatasets])
+  }, [conversations, defaultDatasets])
 
   const setDatasets = useCallback((datasets: string[]) => {
     if (!activeId) {
