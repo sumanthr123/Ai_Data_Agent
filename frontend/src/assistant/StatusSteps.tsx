@@ -72,3 +72,29 @@ export function StatusSteps({ stages, live, startedAt, compact = false }: { stag
     </div>
   )
 }
+
+/** One line while working ("Running query · 0:06"), then "Worked for 14s · 5 steps"; the full list expands either way. */
+export function StepsBlock({ stages, live, startedAt, totalMs }: { stages: StageEvent[]; live: boolean; startedAt?: number; totalMs?: number }) {
+  const steps = stepsFor(stages, live)
+  if (!steps.length && !live) return null
+  const current = [...steps].reverse().find((s) => s.status === 'running') ?? steps.find((s) => s.status === 'pending')
+  const done = steps.filter((s) => s.status === 'succeeded' && s.stage !== 'complete').length
+  const failed = steps.some((s) => s.status === 'failed')
+  return (
+    <details className="group" open={live || failed || undefined}>
+      <summary className="inline-flex min-h-7 cursor-pointer list-none items-center gap-2 rounded-md text-[13.5px] text-fg-2 hover:text-fg">
+        {live ? (
+          <>
+            <LoaderCircle className="h-4 w-4 animate-spin text-brand" aria-hidden />
+            <span className="shimmer-text">{current ? LABELS[current.stage] : 'Starting'}</span>
+            {startedAt && <Elapsed since={startedAt} />}
+          </>
+        ) : (
+          <span>{failed ? 'Stopped at a failed step' : `Worked for ${((totalMs ?? steps.reduce((a, s) => a + s.ms, 0)) / 1000).toFixed(0)}s`} · {done} step{done === 1 ? '' : 's'}</span>
+        )}
+        <span aria-hidden className="text-fg-3 transition group-open:rotate-90">▸</span>
+      </summary>
+      <div className="mt-2 border-l border-line pl-3"><StatusSteps stages={stages} live={live} compact /></div>
+    </details>
+  )
+}

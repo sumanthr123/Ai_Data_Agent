@@ -1,18 +1,10 @@
-import { ChevronDown, Database, FileSpreadsheet, LoaderCircle, MessageSquare, Pencil, RotateCcw, SquarePen, Trash2, Upload, X } from 'lucide-react'
-import { useRef, useState, type DragEvent } from 'react'
+import { ChevronDown, Database, FileSpreadsheet, MessageSquare, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
+import { useState } from 'react'
 import { cn } from '../lib/cn'
-import { deleteUpload, uploadFile } from './api'
+import { deleteUpload } from './api'
 import { relativeTime } from './format'
-import type { Conversation, Dataset, Pin, UploadResult } from './types'
+import type { Conversation, Dataset, Pin } from './types'
 
-type UploadState =
-  | { phase: 'idle' }
-  | { phase: 'uploading'; name: string }
-  | { phase: 'sheet'; file: File; result: UploadResult }
-  | { phase: 'done'; result: UploadResult }
-  | { phase: 'error'; message: string }
-
-const ACCEPT = '.csv,.tsv,.xlsx'
 
 /** Today, the last 7 days, and older, by last update. */
 function groupByAge(list: Conversation[]): [string, Conversation[]][] {
@@ -22,44 +14,19 @@ function groupByAge(list: Conversation[]): [string, Conversation[]][] {
     ['Older', list.filter((c) => c.updatedAt < week)]]
 }
 
-export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, conversations, activeId, onOpen, onNew, onDelete, onRename, pins, onRunPin, onRemovePin, conversationId }: {
+export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, conversations, activeId, onOpen, onDelete, onRename, pins, onRunPin, onRemovePin }: {
   datasets: Dataset[]; selected: string[]; onSelect: (names: string[]) => void; onDatasetsChanged: (select?: string) => void
-  conversations: Conversation[]; activeId: string | null; onOpen: (id: string) => void; onNew: () => void; onDelete: (id: string) => void
+  conversations: Conversation[]; activeId: string | null; onOpen: (id: string) => void; onDelete: (id: string) => void
   onRename: (id: string, title: string) => void
   pins: Pin[]; onRunPin: (pin: Pin) => void; onRemovePin: (id: string) => void
-  conversationId: string
 }) {
-  const [upload, setUpload] = useState<UploadState>({ phase: 'idle' })
-  const [dragging, setDragging] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [inspect, setInspect] = useState<string | null>(null)
-  const input = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [title2, setTitle2] = useState('')
   const [confirming, setConfirming] = useState<string | null>(null)
   const groups = groupByAge(conversations.filter((c) => c.title.toLowerCase().includes(query.trim().toLowerCase())))
-
-  const send = async (file: File, sheet?: string) => {
-    setUpload({ phase: 'uploading', name: file.name })
-    try {
-      const result = await uploadFile(file, conversationId, sheet)
-      if (result.status === 'NEEDS_SHEET') {
-        setUpload({ phase: 'sheet', file, result })
-        return
-      }
-      setUpload({ phase: 'done', result })
-      onDatasetsChanged(result.dataset ?? undefined)
-    } catch (err) {
-      setUpload({ phase: 'error', message: (err as Error).message })
-    }
-  }
-
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault()
-    setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) send(file)
-  }
 
   const toggle = (name: string) => {
     const next = selected.includes(name) ? selected.filter((d) => d !== name) : [...selected, name]
@@ -73,7 +40,7 @@ export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, 
       if (selected.includes(name)) onSelect(selected.filter((d) => d !== name).length ? selected.filter((d) => d !== name) : [datasets[0]?.dataset].filter(Boolean) as string[])
       onDatasetsChanged()
     } catch (err) {
-      setUpload({ phase: 'error', message: (err as Error).message })
+      setError((err as Error).message)
     }
   }
 
@@ -82,7 +49,7 @@ export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-3">
       <section aria-labelledby="ds-heading">
-        <h2 id="ds-heading" className="mb-2 px-1 text-[11.5px] font-semibold uppercase tracking-wide text-zinc-400">Datasets</h2>
+        <h2 id="ds-heading" className="mb-2 px-1 text-[11.5px] font-semibold uppercase tracking-wide text-zinc-400">Data sources</h2>
         <ul className="space-y-1">
           {datasets.map((d) => {
             const on = selected.includes(d.dataset)
@@ -119,43 +86,11 @@ export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, 
         </ul>
       </section>
 
-      <section aria-labelledby="up-heading">
-        <h2 id="up-heading" className="mb-2 px-1 text-[11.5px] font-semibold uppercase tracking-wide text-zinc-400">Add data</h2>
-        <div onDragOver={(e) => { e.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={onDrop}
-          className={cn('rounded-lg border border-dashed p-3 text-center transition', dragging ? 'border-sky-400 bg-sky-400/10' : 'border-zinc-700')}>
-          <Upload className="mx-auto h-5 w-5 text-zinc-400" aria-hidden />
-          <p className="mt-1 text-[12.5px] text-zinc-300">Drop a CSV or Excel file</p>
-          <button type="button" onClick={() => input.current?.click()} className="mt-2 rounded-md border border-zinc-700 px-2.5 py-1 text-[12px] text-zinc-100 hover:bg-zinc-800">
-            Choose file
-          </button>
-          <input ref={input} type="file" accept={ACCEPT} className="sr-only" aria-label="Upload a CSV or Excel file"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); e.target.value = '' }} />
-          <p className="mt-2 text-[11px] text-zinc-500">CSV, TSV or XLSX · up to 25 MB · private to you · deleted after 24 h</p>
-        </div>
-        <div aria-live="polite">
-          {upload.phase === 'uploading' && (
-            <p className="mt-2 flex items-center gap-2 text-[12.5px] text-zinc-300"><LoaderCircle className="h-3.5 w-3.5 animate-spin" /> Uploading and profiling {upload.name}…</p>
-          )}
-          {upload.phase === 'sheet' && (
-            <fieldset className="mt-2 rounded-lg border border-zinc-800 p-2">
-              <legend className="px-1 text-[12px] text-zinc-300">Which sheet in {upload.result.file_name}?</legend>
-              {upload.result.sheets.map((s) => (
-                <button key={s.name} type="button" onClick={() => send(upload.file, s.name)}
-                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-[12.5px] text-zinc-100 hover:bg-zinc-800">
-                  <span>{s.name}</span><span className="text-zinc-400">{s.rows.toLocaleString()} rows · {s.columns} cols</span>
-                </button>
-              ))}
-            </fieldset>
-          )}
-          {upload.phase === 'done' && <UploadSummary result={upload.result} onDismiss={() => setUpload({ phase: 'idle' })} />}
-          {upload.phase === 'error' && (
-            <div role="alert" className="mt-2 rounded-lg border border-rose-400/30 bg-rose-400/10 p-2 text-[12.5px] text-rose-100">
-              {upload.message}
-              <button type="button" onClick={() => setUpload({ phase: 'idle' })} className="ml-2 underline">Dismiss</button>
-            </div>
-          )}
-        </div>
-      </section>
+      {error && (
+        <p role="alert" className="rounded-md border border-err/40 bg-err/5 p-2 text-[12.5px] text-err">
+          {error} <button type="button" onClick={() => setError(null)} className="ml-1 underline">Dismiss</button>
+        </p>
+      )}
 
       {pins.length > 0 && (
         <section aria-labelledby="pin-heading">
@@ -180,10 +115,7 @@ export function DatasetPanel({ datasets, selected, onSelect, onDatasetsChanged, 
 
       <section aria-labelledby="conv-heading" className="min-h-0">
         <div className="mb-2 flex items-center justify-between px-1">
-          <h2 id="conv-heading" className="text-[12px] font-semibold uppercase tracking-wide text-fg-3">Conversations</h2>
-          <button type="button" onClick={onNew} className="inline-flex min-h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-fg hover:bg-surface-2">
-            <SquarePen className="h-3.5 w-3.5" aria-hidden /> New chat
-          </button>
+          <h2 id="conv-heading" className="text-[12px] font-semibold uppercase tracking-wide text-fg-3">Recents</h2>
         </div>
         {conversations.length === 0 ? (
           <p className="px-1 text-[13px] text-fg-3">No conversations yet. Ask a question to start one.</p>
@@ -260,14 +192,3 @@ function Inspector({ dataset }: { dataset: Dataset }) {
   )
 }
 
-function UploadSummary({ result, onDismiss }: { result: UploadResult; onDismiss: () => void }) {
-  const notes = result.columns.flatMap((c) => c.notes.map((n) => `${c.name}: ${n}`))
-  return (
-    <div className="mt-2 rounded-lg border border-emerald-400/30 bg-emerald-400/5 p-2 text-[12px]">
-      <p className="text-emerald-100">{result.file_name}{result.sheet ? ` (${result.sheet})` : ''}: {result.row_count.toLocaleString()} rows, {result.columns.length} columns loaded and selected.</p>
-      {result.rejected_row_count > 0 && <p className="mt-1 text-amber-200">{result.rejected_row_count} malformed rows not loaded (lines {result.rejected_rows.slice(0, 8).join(', ')}).</p>}
-      {notes.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-4 text-zinc-300">{notes.slice(0, 6).map((n) => <li key={n}>{n}</li>)}</ul>}
-      <button type="button" onClick={onDismiss} className="mt-1 text-zinc-400 underline">Dismiss</button>
-    </div>
-  )
-}

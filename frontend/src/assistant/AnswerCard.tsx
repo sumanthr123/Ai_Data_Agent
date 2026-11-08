@@ -10,7 +10,7 @@ import { chartPlan, kpiOf } from './chartPlan'
 import { fmtCell, humanize, layoutSql, relativeTime } from './format'
 import { followups, type FollowupColumn } from './followups'
 import { ResultTable } from './ResultTable'
-import { StatusSteps } from './StatusSteps'
+import { StepsBlock } from './StatusSteps'
 import type { AskResponse, ErrorCode, FeedbackReason, Turn } from './types'
 
 const ResultChart = lazy(() => import('./ResultChart').then((m) => ({ default: m.ResultChart })))  // recharts loads with the first chart
@@ -165,7 +165,6 @@ function HowIGotThis({ turn, r, onDetails }: { turn: Turn; r: AskResponse; onDet
         <FileSearch className="h-4 w-4" aria-hidden /> How I got this
       </summary>
       <div className="space-y-4 border-t border-line p-3 text-[13px]">
-        <StatusSteps stages={turn.stages} live={false} compact />
         {r.sql && <CodeBlock code={layoutSql(r.sql)} lang="sql" />}
         {r.sources.length > 0 && (
           <div>
@@ -243,12 +242,20 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, p
     .then(() => setNote(`${format.toUpperCase()} downloaded`), (err: Error) => setNote(`Export failed: ${err.message}`))
 
   return (
-    <article className="space-y-2">
+    <article className="space-y-3">
       <h3 className="sr-only">You asked</h3>
-      <p className="whitespace-pre-wrap text-[15px] font-medium text-fg">{turn.question}</p>
-      <section className="space-y-4 rounded-lg border border-line bg-surface p-4">
+      <div className="group/q flex flex-col items-end">
+        <p className="max-w-[80%] whitespace-pre-wrap rounded-[18px] bg-bubble px-4 py-2.5 text-[15px] text-fg">{turn.question}</p>
+        <div className="mt-0.5 flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/q:opacity-100">
+          <ActionButton onClick={() => act({ type: 'prefill', text: turn.question })} label="Edit and ask again"><Pencil className="h-3.5 w-3.5" aria-hidden /></ActionButton>
+          <ActionButton onClick={() => navigator.clipboard.writeText(turn.question).then(() => setNote('Question copied'), (err: Error) => setNote(`Copy failed: ${err.message}`))} label="Copy question">
+            <Copy className="h-3.5 w-3.5" aria-hidden />
+          </ActionButton>
+        </div>
+      </div>
+      <section className="space-y-4">
         <h3 className="sr-only">AI Data Assistant answered</h3>
-        {(live || !r) && <StatusSteps stages={turn.stages} live={live} startedAt={turn.startedAt} />}
+        <StepsBlock stages={turn.stages} live={live} startedAt={turn.startedAt} totalMs={r?.total_ms} />
         {live && <div className="skeleton h-[290px] rounded-lg" aria-hidden />}
         {problem && <ProblemBlock p={problem} onAction={act} />}
 
@@ -271,7 +278,7 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, p
             ) : (
               <>
                 {kpi && <Kpi {...kpi} />}
-                {r.answer && <div className="text-[15px] leading-relaxed"><Markdown text={r.answer} sources={r.web_sources} /></div>}
+                {r.answer && <div className="text-[16px] leading-[1.65]"><Markdown text={r.answer} sources={r.web_sources} /></div>}
               </>
             )}
 

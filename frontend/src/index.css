@@ -2,34 +2,35 @@
 @config "../tailwind.config.js";
 
 /* Design tokens. Every pair used for text passes WCAG AA (4.5:1) on bg, surface and surface-2 in both themes;
-   borders-strong, accent and chart colors pass 3:1 (checked when chosen, 2026-11-07). */
+   borders-strong, accent and chart colors pass 3:1 (re-checked 2026-11-08 for the warm palette). Hairline borders are
+   decorative; inputs use border-strong. */
 :root {
-  --bg: #F6F4EF; --surface: #FFFFFF; --surface-2: #EFECE5; --border: #DDD8CE; --border-strong: #8E887C;
-  --text: #1C1B19; --text-2: #4F4B43; --text-3: #6A655B;
-  --brand: #1F5C4A; --on-brand: #FFFFFF; --accent: #9C6608;
-  --ok: #2B6B45; --warn: #8A5A00; --err: #A8322B;
-  --chart-1: #1F5C4A; --chart-2: #B07A14; --chart-3: #3A6EA5; --chart-4: #A8443A; --chart-5: #6A5A94; --chart-6: #4E7A2C;
-  --code-kw: #3A4FB0; --code-fn: #8A5A00; --code-str: #2B6B45; --code-num: #A8322B; --code-com: #6A655B;
+  --bg: #F7F4EE; --surface: #FFFDF9; --surface-2: #EFEAE1; --bubble: #ECE6DB; --border: rgba(46, 38, 30, 0.12); --border-strong: #8A8174;
+  --text: #24201B; --text-2: #4E473F; --text-3: #665D53;
+  --brand: #2F6B5B; --on-brand: #FFFFFF; --accent: #2F6B5B;
+  --ok: #2F6B45; --warn: #8A5A00; --err: #A63A28;
+  --chart-1: #2F6B5B; --chart-2: #B07A14; --chart-3: #3A6EA5; --chart-4: #A8443A; --chart-5: #6A5A94; --chart-6: #4E7A2C;
+  --code-kw: #3A4FB0; --code-fn: #8A5A00; --code-str: #2F6B45; --code-num: #A63A28; --code-com: #665D53;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #141412; --surface: #1C1B19; --surface-2: #26241F; --border: #34312B; --border-strong: #6E685D;
-    --text: #ECE8DF; --text-2: #BDB6A9; --text-3: #958F82;
-    --brand: #6FBF9F; --on-brand: #141412; --accent: #E3A83F;
-    --ok: #7CCB98; --warn: #E5B454; --err: #F09A92;
-    --chart-1: #6FBF9F; --chart-2: #E3A83F; --chart-3: #7FAEE0; --chart-4: #EE8F84; --chart-5: #B4A3E0; --chart-6: #9CCB72;
-    --code-kw: #9DB0F5; --code-fn: #E5B454; --code-str: #7CCB98; --code-num: #F09A92; --code-com: #958F82;
+    --bg: #1C1916; --surface: #25211D; --surface-2: #171512; --bubble: #2E2924; --border: rgba(240, 230, 215, 0.12); --border-strong: #766D61;
+    --text: #EEE7DC; --text-2: #C9C0B3; --text-3: #A99F92;
+    --brand: #7FC2AE; --on-brand: #13201C; --accent: #7FC2AE;
+    --ok: #8CCB9F; --warn: #E2B35A; --err: #F0998C;
+    --chart-1: #7FC2AE; --chart-2: #E3A83F; --chart-3: #7FAEE0; --chart-4: #EE8F84; --chart-5: #B4A3E0; --chart-6: #9CCB72;
+    --code-kw: #9DB0F5; --code-fn: #E2B35A; --code-str: #8CCB9F; --code-num: #F0998C; --code-com: #A99F92;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #141412; --surface: #1C1B19; --surface-2: #26241F; --border: #34312B; --border-strong: #6E685D;
-  --text: #ECE8DF; --text-2: #BDB6A9; --text-3: #958F82;
-  --brand: #6FBF9F; --on-brand: #141412; --accent: #E3A83F;
-  --ok: #7CCB98; --warn: #E5B454; --err: #F09A92;
-  --chart-1: #6FBF9F; --chart-2: #E3A83F; --chart-3: #7FAEE0; --chart-4: #EE8F84; --chart-5: #B4A3E0; --chart-6: #9CCB72;
-  --code-kw: #9DB0F5; --code-fn: #E5B454; --code-str: #7CCB98; --code-num: #F09A92; --code-com: #958F82;
+  --bg: #1C1916; --surface: #25211D; --surface-2: #171512; --bubble: #2E2924; --border: rgba(240, 230, 215, 0.12); --border-strong: #766D61;
+  --text: #EEE7DC; --text-2: #C9C0B3; --text-3: #A99F92;
+  --brand: #7FC2AE; --on-brand: #13201C; --accent: #7FC2AE;
+  --ok: #8CCB9F; --warn: #E2B35A; --err: #F0998C;
+  --chart-1: #7FC2AE; --chart-2: #E3A83F; --chart-3: #7FAEE0; --chart-4: #EE8F84; --chart-5: #B4A3E0; --chart-6: #9CCB72;
+  --code-kw: #9DB0F5; --code-fn: #E2B35A; --code-str: #8CCB9F; --code-num: #F0998C; --code-com: #A99F92;
   color-scheme: dark;
 }
 
@@ -37,6 +38,8 @@
 @theme inline {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Source Serif 4", Georgia, serif;
+  --color-bubble: var(--bubble);
   --color-bg: var(--bg); --color-surface: var(--surface); --color-surface-2: var(--surface-2);
   --color-line: var(--border); --color-line-strong: var(--border-strong);
   --color-fg: var(--text); --color-fg-2: var(--text-2); --color-fg-3: var(--text-3);
@@ -63,6 +66,12 @@ body {
 ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 .tnum { font-variant-numeric: tabular-nums; }
+@keyframes text-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+.shimmer-text {
+  background: linear-gradient(90deg, var(--text-2) 40%, var(--text) 50%, var(--text-2) 60%) 0 0 / 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: text-shimmer 2s linear infinite;
+}
 
 @keyframes reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .reveal { animation: reveal 220ms ease-out both; }
