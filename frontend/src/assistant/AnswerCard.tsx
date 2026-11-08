@@ -158,7 +158,7 @@ function Visual({ r, theme, onError }: { r: AskResponse; theme: string; onError:
   )
 }
 
-function HowIGotThis({ turn, r, onDetails }: { turn: Turn; r: AskResponse; onDetails: () => void }) {
+function HowIGotThis({ r, onDetails }: { r: AskResponse; onDetails: () => void }) {
   return (
     <details className="group rounded-md border border-line">
       <summary className="flex min-h-9 cursor-pointer items-center gap-2 px-3 text-[13px] font-medium text-fg-2 hover:text-fg">
@@ -315,7 +315,7 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, p
               </details>
             )}
 
-            {(r.kind ?? 'data') === 'data' && <HowIGotThis turn={turn} r={r} onDetails={() => act({ type: 'details' })} />}
+            {(r.kind ?? 'data') === 'data' && <HowIGotThis r={r} onDetails={() => act({ type: 'details' })} />}
 
             <div className="flex flex-wrap items-center gap-1 border-t border-line pt-2">
               {r.answer && <ActionButton onClick={copySummary}><Copy className="h-3.5 w-3.5" aria-hidden /> Copy summary</ActionButton>}
