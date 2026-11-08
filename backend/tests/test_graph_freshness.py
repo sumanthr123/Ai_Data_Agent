@@ -130,6 +130,32 @@ class AgentGoldGuardTests(unittest.TestCase):
                     sql_guard.guard(sql, self.ALLOWED)
 
 
+class FeedbackTests(unittest.TestCase):
+    def _tracer(self):
+        tracer = Tracer("exp")
+        tracer._ready = True
+        return tracer
+
+    def test_assessment_used_when_available(self):
+        fake = unittest.mock.MagicMock()
+        with unittest.mock.patch.dict(sys.modules, {"mlflow": fake, "mlflow.entities": fake.entities}):
+            self._tracer().log_feedback("tr-1", False, "too_slow", "u1")
+        fake.log_feedback.assert_called_once()
+        fake.MlflowClient.return_value.set_trace_tag.assert_not_called()
+
+    def test_tags_used_and_logged_when_assessments_are_refused(self):
+        fake = unittest.mock.MagicMock()
+        fake.log_feedback.side_effect = RuntimeError("Not available in this workspace")
+        with unittest.mock.patch.dict(sys.modules, {"mlflow": fake, "mlflow.entities": fake.entities}), \
+                self.assertLogs("ask.tracing", "WARNING"):
+            self._tracer().log_feedback("tr-1", False, "too_slow", "u1")
+        fake.MlflowClient.return_value.set_trace_tag.assert_any_call("tr-1", "user_feedback", "not_helpful:too_slow")
+
+    def test_feedback_raises_when_tracing_is_off(self):
+        with self.assertRaises(RuntimeError):
+            Tracer("").log_feedback("tr-1", True, None, "u1")
+
+
 class SilentFailureTests(unittest.TestCase):
     def test_unreadable_freshness_is_logged(self):
         def denied(_):

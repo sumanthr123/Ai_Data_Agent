@@ -80,8 +80,14 @@ class Tracer:
         import mlflow
         from mlflow.entities import AssessmentSource
 
-        mlflow.log_feedback(trace_id=trace_id, name="user_feedback", value=helpful, rationale=reason,
-                            source=AssessmentSource(source_type="HUMAN", source_id=source_id))
+        try:
+            mlflow.log_feedback(trace_id=trace_id, name="user_feedback", value=helpful, rationale=reason,
+                                source=AssessmentSource(source_type="HUMAN", source_id=source_id))
+        except Exception as exc:  # assessments are not offered on every workspace (Free Edition: "Not available in this workspace")
+            logger.warning("Feedback assessment refused (%s); storing it as trace tags", exc)
+            client = mlflow.MlflowClient()
+            client.set_trace_tag(trace_id, "user_feedback", "helpful" if helpful else f"not_helpful:{reason or 'unspecified'}")
+            client.set_trace_tag(trace_id, "user_feedback_source", source_id)
 
     @contextmanager
     def span(self, name: str, span_type: str = "UNKNOWN", inputs: dict[str, Any] | None = None) -> Iterator[Any]:
