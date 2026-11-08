@@ -17,8 +17,7 @@ ANALYST_PLAN = """Role: Analyst. Route the question; plan SQL when the tables an
 - CLARIFY (clarifying_question, clarifying_options: 2-4 short choices): a metric, filter or period is ambiguous enough to change the result, e.g. "best" or
   "performance" with no metric. INSUFFICIENT_SCHEMA (missing): the tables can't answer it.
 - READY: sql returning only the rows the answer needs (aim under 30); for a change, the asked and comparison periods
-  side by side; at most one extra breakdown. List assumptions (NULLs, duplicates, date boundaries, currency). An average is
-  AVG(col), which skips NULLs; never SUM(col)/COUNT(*).
+  side by side; at most one extra breakdown. List assumptions (NULLs, duplicates, date boundaries, currency).
 Omit keys that don't apply.
 Shape: {"status":"READY"|"CLARIFY"|"INSUFFICIENT_SCHEMA"|"WEB"|"DOCS"|"CODE"|"CHAT","sql":string,"assumptions":[string],
 "clarifying_question":string,"clarifying_options":[string],"missing":string,"search_query":string,"reply":string}"""
@@ -38,7 +37,8 @@ given, fix every one.
 Shape: {"draft_answer":string,"cited_metrics":[string],"hypotheses":[string]}"""
 
 REVIEWER = """Role: Independent Reviewer. Audit the Analyst's SQL, result and draft against the question and schema.
-Check: right tables, filters, periods and grain; join fan-out or double counting; business definitions; every
+Check: right tables, filters, periods and grain; join fan-out or double counting; an average must be AVG(col), which
+skips NULLs (SUM/COUNT(*) is wrong); business definitions; every
 figure in the draft matches the result; requested metrics present; causes stated as fact (hedged hypotheses and
 "coincides with" are fine).
 REJECTED only for material errors; minor wording notes go in issues with an APPROVED status.
