@@ -117,7 +117,7 @@ class LiveQuestionTests(unittest.TestCase):
         with unittest.mock.patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
             r, models, data = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?")
         self.assertEqual((r.status, r.kind, r.answer), ("ANSWERED", "web", WEB_OFF))
-        self.assertEqual((len(models.seen), data.executed), (1, []))
+        self.assertEqual((len(models.seen), data.executed), (0, []))  # an obvious live question isn't planned
         self.assertNotIn("web_search", [e.stage for e in r.events])
 
     def test_failed_search_never_guesses(self):
@@ -132,7 +132,7 @@ class RouteTests(unittest.TestCase):
     def test_chat_is_answered_by_the_plan_alone(self):
         r, models, data = run({CFG.analyst: [{"status": "CHAT", "reply": "Hi! Ask me about your data."}]}, question="hello")
         self.assertEqual((r.kind, r.status, r.answer), ("chat", "ANSWERED", "Hi! Ask me about your data."))
-        self.assertEqual((len(models.seen), data.executed), (1, []))
+        self.assertEqual((len(models.seen), data.executed), (0, []))  # an obvious live question isn't planned
 
     def test_docs_answer_cites_retrieved_passages(self):
         plan = {"status": "DOCS", "search_query": "upload expiry TTL"}
