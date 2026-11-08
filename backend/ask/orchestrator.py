@@ -105,10 +105,14 @@ _OWN_FIGURE = re.compile(r"\b(our|my)\s+(\w+\s+){0,2}(spend|spending|expenses?|c
 _HAS_CODE = re.compile(r"\bselect\b[\s\S]+\bfrom\b|\bdef \w+\(|\bspark\.\w+|```", re.I)
 
 
+_BREAKDOWN = re.compile(r"\b(dimension|aspect|breakdown|break (it|this) down|analy[sz]e|investigate|drill)\b", re.I)
+
+
 def _asks_only_for_comparison(question: str, clarifying: str | None) -> bool:
-    """A rise or drop with no comparison named: the planner asks "compared with what?" though the previous period is the
-    usual reading. Not when it also asks which metric, which is a real ambiguity."""
-    return bool(clarifying and _CHANGE.search(question) and _COMPARISON.search(clarifying) and not _METRIC.search(clarifying))
+    """A rise or drop asked about: the planner asks "compared with what?" or "which dimension should I look at?", though the
+    previous period and the most explanatory breakdown are the usual reading. Not when it asks which metric, a real ambiguity."""
+    return bool(clarifying and _CHANGE.search(question) and (_COMPARISON.search(clarifying) or _BREAKDOWN.search(clarifying))
+                and not _METRIC.search(clarifying))
 
 
 def _data(kind: str, text: str) -> str:

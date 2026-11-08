@@ -203,7 +203,7 @@ def no_causal_claims(rs: list[AskResponse], ctx: Ctx, _: Faults) -> tuple[bool, 
     r = rs[-1]
     stated = sorted({m.group(0).lower() for m in grounding.CAUSAL.finditer(r.answer)})
     if r.status not in ("ANSWERED", "INSUFFICIENT_SCHEMA", "UNRESOLVED"):
-        return False, f"status {r.status}"
+        return False, f"status {r.status}" + (f": {r.clarifying_question} {r.clarifying_options}" if r.clarifying_question else "")
     return not stated, f"causal wording stated as fact: {stated}" if stated else f"no causes stated as fact ({len(r.hypotheses)} hypotheses kept separate)"
 
 

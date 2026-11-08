@@ -768,5 +768,20 @@ class LiveRoutingTests(unittest.TestCase):
         self.assertEqual(r.kind, "data")
 
 
+
+class SettledQuestionTests(unittest.TestCase):
+    def test_why_a_figure_dropped_is_answered_not_turned_into_a_breakdown_menu(self):
+        menu = {"status": "CLARIFY", "clarifying_question": "Which dimension would you like to analyze to explain the February 2017 sales drop?",
+                "clarifying_options": ["By category", "By region"]}
+        r, models, _ = run({CFG.analyst: [menu, PLAN, GOOD], CFG.reviewer: [APPROVED]}, question="What caused the drop in sales in February 2017?")
+        self.assertEqual(r.status, "ANSWERED")
+        self.assertEqual([c.purpose for c in r.verification.calls if c.role == "analyst"][:2], ["plan", "plan"])
+
+    def test_which_metric_is_still_asked(self):
+        ask = {"status": "CLARIFY", "clarifying_question": "Which metric dropped: sales or profit?", "clarifying_options": ["Sales", "Profit"]}
+        r, _, _ = run({CFG.analyst: [ask]}, question="Why did it drop in February?")
+        self.assertEqual(r.status, "NEEDS_CLARIFICATION")
+
+
 if __name__ == "__main__":
     unittest.main()

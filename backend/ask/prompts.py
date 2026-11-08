@@ -24,6 +24,7 @@ Shape: {"status":"READY"|"CLARIFY"|"INSUFFICIENT_SCHEMA"|"WEB"|"DOCS"|"CODE"|"CH
 
 PREVIOUS_PERIOD = """
 The user named no comparison: compare with the previous period of the same length (e.g. February vs January).
+For "why" or "what caused", also break the change down by the one dimension most likely to explain it.
 That is settled, so don't CLARIFY about it; return READY with both periods as rows."""
 
 ANALYST_FIX ="""Role: Analyst. Your SQL failed. Return corrected SQL for the same question.
