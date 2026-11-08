@@ -101,7 +101,7 @@ class LiveQuestionTests(unittest.TestCase):
         self.assertEqual(r.status, "ANSWERED")
         self.assertIn("[1]", r.answer)
         self.assertEqual(r.web_sources[0].url, "https://www.weather.gov/sew")
-        self.assertEqual([c.purpose for c in r.verification.calls], ["plan"])  # no SQL, no extra model calls
+        self.assertEqual(r.verification.calls, [])  # a live question goes straight to the search: no planning call, no SQL
         self.assertEqual(data.executed, [])
         self.assertFalse(r.verification.reviewed)
         self.assertIn("live web search", r.verification.degraded_reasons[0])
@@ -743,6 +743,29 @@ class ExportAndFeedbackTests(unittest.TestCase):
             FeedbackRequest(trace_id="tr-1", helpful=False, reason="Claire Gute's numbers are wrong")
         with self.assertRaises(ValidationError):
             FeedbackRequest(trace_id="tr 1; drop", helpful=True)
+
+
+
+class LiveRoutingTests(unittest.TestCase):
+    def test_news_skips_tables_and_planning(self):
+        r, models, data = run({}, question="What is the news today?", search=fake_search)
+        self.assertEqual((r.kind, r.status), ("web", "ANSWERED"))
+        self.assertEqual((models.seen, data.described, data.executed), ([], 0, []))
+        self.assertEqual([e.stage for e in r.events], ["web_search", "complete"])
+
+    def test_own_figures_still_go_to_the_data(self):
+        r, _, data = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, question="What is the latest news on our sales by region?")
+        self.assertEqual(r.kind, "data")
+        self.assertGreater(data.described, 0)
+
+    def test_date_question_uses_the_clock(self):
+        r, models, data = run({}, question="What is today's date?")
+        self.assertEqual((r.kind, r.status, models.seen, data.described), ("chat", "ANSWERED", [], 0))
+        self.assertIn(str(dt.datetime.now(dt.timezone.utc).year), r.answer)
+
+    def test_data_questions_about_dates_are_not_clock_questions(self):
+        r, _, _ = run({CFG.analyst: [PLAN, GOOD], CFG.reviewer: [APPROVED]}, question="What are total sales by date?")
+        self.assertEqual(r.kind, "data")
 
 
 if __name__ == "__main__":

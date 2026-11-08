@@ -95,6 +95,10 @@ WEB_OFF = ("Live web search is turned off, so I can't answer questions about cur
 _CHANGE = re.compile(r"\b(drop|dropped|fall|fell|decline|declined|decrease|decreased|dip|dipped|rise|rose|increase|increased|grow|grew|growth|jump|jumped|spike|spiked)\b", re.I)
 _COMPARISON = re.compile(r"\b(previous|prior|same month|last year|preceding|compar\w*|reference period|baseline)\b", re.I)
 _COURTESY = re.compile(r"\s*(thanks|thank you|thx|cheers|hi|hello|hey|bye|goodbye|ok|okay|great)\b", re.I)
+# Unmistakably live questions skip the tables and the planning call: one web search answers them. Own figures never match.
+_LIVE = re.compile(r"\b(news|headlines?|weather|stock (price|market)|share price|exchange rates?|bitcoin|crypto(currency)?|inflation rate|"
+                   r"interest rates?|federal funds|who won|election results?|latest \w+( \w+)? (announcements?|releases?|updates?))\b", re.I)
+_DATE_Q = re.compile(r"^\W*(what('s| is)? ?(today'?s date|the date( today)?|the time( now)?|the day( today)?)|what (day|time) is it( today| now)?|today'?s date)\W*$", re.I)
 _UC_DENIED = re.compile(r"\b(INSUFFICIENT_PERMISSIONS|PERMISSION_DENIED)\b")  # Databricks error classes, not free text
 _METRIC = re.compile(r"\b(metric|measure)s?\b", re.I)
 _OWN_FIGURE = re.compile(r"\b(our|my)\s+(\w+\s+){0,2}(spend|spending|expenses?|costs?|budget|payroll|salar(y|ies)|revenue|sales|profits?|margins?|income|headcount)\b", re.I)
@@ -186,6 +190,12 @@ class Orchestrator:
     async def _run(self, req: AskRequest, state: ConversationState) -> AskResponse:
         cfg = self.cfg
         datasets = list(dict.fromkeys(d.strip().lower() for d in (req.datasets or state.active_datasets or [cfg.default_dataset])))
+        if not state.pending_clarification and not req.council:
+            if _DATE_Q.search(req.question):
+                now = dt.datetime.now(dt.timezone.utc)
+                return self._finish("ANSWERED", state, kind="chat", answer=f"It's {now:%A}, {now:%B} {now.day}, {now:%Y}, {now:%H:%M} UTC.")
+            if _LIVE.search(req.question) and not _OWN_FIGURE.search(req.question):
+                return await self._web(state, req.question, req.question)
         self._running("context")
         mark = time.monotonic()
         denied = "Couldn't open {}: it doesn't exist or you don't have access."

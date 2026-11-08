@@ -4,7 +4,7 @@ import type { Stage, StageEvent, StageStatus } from './types'
 
 /** Action labels, not anthropomorphic ones. */
 export const LABELS: Partial<Record<Stage, string>> = {
-  context: 'Reading table metadata', clarify: 'Checking the question', generate_sql: 'Writing SQL', web_search: 'Searching the web',
+  context: 'Reading table metadata', clarify: 'Checking the question', generate_sql: 'Planning the answer', web_search: 'Searching the web',
   retrieve: 'Searching project docs', council: 'Independent models drafting', execute: 'Running query', draft: 'Writing answer',
   review: 'Independent review', correct: 'Correcting', adjudicate: 'Judging the drafts', complete: 'Complete',
 }
@@ -25,7 +25,9 @@ export interface Step { stage: Stage; status: StageStatus | 'pending'; ms: numbe
 /** Steps reflect real events only: a step stays pending until the server reports it running. */
 export function stepsFor(stages: StageEvent[], live: boolean): Step[] {
   const seen = new Set(stages.map((s) => s.stage))
-  const main: Stage[] = seen.has('web_search') ? ['context', 'generate_sql', 'web_search', 'complete']
+  // A live question can go straight to the web: then no table or planning step ran, and none is shown.
+  const main: Stage[] = seen.has('web_search') && !seen.has('context') ? ['web_search', 'complete']
+    : seen.has('web_search') ? ['context', 'generate_sql', 'web_search', 'complete']
     : seen.has('retrieve') ? ['context', 'generate_sql', 'retrieve', 'draft', 'complete']
     : seen.has('generate_sql') && !seen.has('execute') && seen.has('complete') ? ['context', 'generate_sql', 'draft', 'complete'] : MAIN
   const order: Stage[] = main.flatMap((s) => (s === 'complete' ? (['correct', 'council', 'adjudicate', 'clarify'] as Stage[]).filter((x) => seen.has(x)).concat(s) : [s]))
