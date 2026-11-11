@@ -22,7 +22,6 @@ import threading
 import time
 import traceback
 import unittest
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -141,27 +140,23 @@ def part_start(root: Path) -> dict[str, Any]:
         out["import_error"] = next(i["out"] for i in imports if i["rc"] != 0)
     else:
         out["import_app_median_s"] = statistics.median(out["import_app_s"])
-    log = tempfile.TemporaryFile()
-    direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # the job's outbound proxy can't reach localhost
-    last = ""
+    # Ready = uvicorn's own "running on" line: the job sandbox refuses loopback connections, so /api/health can't be polled.
+    log = Path(tempfile.mkdtemp()) / "server.log"
     began = time.perf_counter()
-    server = subprocess.Popen([sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", str(PORT), "--log-level", "info"], cwd=root, env=env, stdout=log, stderr=log)
-    try:
-        while time.perf_counter() - began < 120 and server.poll() is None:
-            try:
-                with direct.open(f"http://127.0.0.1:{PORT}/api/health", timeout=2) as r:
-                    if r.status == 200:
-                        out["server_ready_s"] = round(time.perf_counter() - began, 2)
-                        break
-            except OSError as exc:
-                last = repr(exc)
-                time.sleep(0.1)
-        if "server_ready_s" not in out:
-            log.seek(0)
-            out["server_error"] = f"not ready (exit {server.poll()}, last error {last}): " + log.read().decode(errors="replace")[-1500:]
-    finally:
-        server.terminate()
-        server.wait(15)
+    with log.open("wb") as sink:
+        server = subprocess.Popen([sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", str(PORT), "--log-level", "info"],
+                                  cwd=root, env=env, stdout=sink, stderr=sink)
+        try:
+            while time.perf_counter() - began < 60 and server.poll() is None:
+                if "Uvicorn running on" in log.read_text(errors="replace"):
+                    out["server_ready_s"] = round(time.perf_counter() - began, 2)
+                    break
+                time.sleep(0.05)
+            if "server_ready_s" not in out:
+                out["server_error"] = f"not ready (exit {server.poll()}): " + log.read_text(errors="replace")[-1500:]
+        finally:
+            server.terminate()
+            server.wait(15)
     return out
 
 

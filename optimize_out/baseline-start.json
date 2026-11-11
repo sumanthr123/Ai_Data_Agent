@@ -1,0 +1,16 @@
+{
+ "label": "baseline-start",
+ "python": "3.11.10",
+ "parts": [
+  "start"
+ ],
+ "start": {
+  "import_app_s": [
+   4.658,
+   1.764,
+   1.661
+  ],
+  "import_app_median_s": 1.764,
+  "server_error": "not ready (exit None, last error URLError(ConnectionRefusedError(111, 'Connection refused'))): INFO:     Started server process [7708]\nINFO:     Waiting for application startup.\nINFO:     Application startup complete.\nINFO:     Uvicorn running on http://127.0.0.1:8765 (Press CTRL+C to quit)\n"
+ }
+}
