@@ -1,6 +1,8 @@
 """Release gate over live eval results: fails (exit 1) unless every threshold holds and nothing dropped vs the baseline.
 
-    .venv/bin/python -m evals.gate [--runs 3] [--baseline evals/results/baseline.json] [--save-baseline]
+    python -m evals.gate [--runs 3] [--baseline evals/results/baseline.json] [--save-baseline]
+
+Called in-process by the Databricks checks job (scripts/databricks_checks.py), never on a workstation.
 
 Pools the newest --runs result files (one run varies too much to gate on). Categories are run_evals.CATEGORIES.
 Promote a run to the baseline with --save-baseline only after the release it measured was approved.
