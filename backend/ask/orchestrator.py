@@ -38,7 +38,7 @@ from backend.ask.settings import AskSettings, model_family
 from backend.ask.tracing import Tracer, redact
 from backend.ask.warehouse import Execution, QueryError, execute
 from backend.schemas import ColumnNode
-from backend.services import web_search
+from backend.services import market, web_search
 from backend.services.compare import compare_pair
 from backend.ask.text import clean_citations, json_block, plain_error
 from backend.services.sql_safety import UnsafeSqlError
@@ -198,7 +198,9 @@ class Orchestrator:
             if _DATE_Q.search(req.question):
                 now = dt.datetime.now(dt.timezone.utc)
                 return self._finish("ANSWERED", state, kind="chat", answer=f"It's {now:%A}, {now:%B} {now.day}, {now:%Y}, {now:%H:%M} UTC.")
-            if _LIVE.search(req.question) and not _OWN_FIGURE.search(req.question):
+            if (_LIVE.search(req.question) or market.is_quote_question(req.question)) and not _OWN_FIGURE.search(req.question):
+                if market.is_quote_question(req.question):
+                    return await self._quote(state, req.question)
                 return await self._web(state, req.question, req.question)
         self._running("context")
         mark = time.monotonic()
@@ -742,6 +744,8 @@ class Orchestrator:
     async def _web(self, state: ConversationState, question: str, query: str) -> AskResponse:
         """Live question: one grounded Google Search; the answer cites the pages it came from and is labelled as such."""
         if self.search is web_search.search and not web_search.available():
+            if market.is_news_question(question):
+                return await self._news(state, question, "Live web search is off")
             return self._finish("ANSWERED", state, kind="web", answer=WEB_OFF)
         self._running("web_search")
         mark = time.monotonic()
@@ -750,6 +754,8 @@ class Orchestrator:
             found = await asyncio.to_thread(self.search, query)
         except Exception as exc:
             self._event("web_search", "failed", mark, plain_error(exc))
+            if market.is_news_question(question):
+                return await self._news(state, question, f"Live web search failed ({plain_error(exc)})")
             return self._finish("ERROR", state, kind="web", answer=f"Live search didn't work, so I won't guess: {plain_error(exc)}", error_code="web_unavailable")
         answer, truncated = grounding.cap_words(found["summary"], self.cfg.max_answer_words)
         answer, uncited = clean_citations(answer, len(found["sources"]))
@@ -760,7 +766,48 @@ class Orchestrator:
             f"From a live web search ({found['retrieved_at']}), not from your data; only as reliable as the cited pages.")
         self._event("web_search", "succeeded", mark, f"{len(found['sources'])} source(s)")
         return self._finish("ANSWERED", state, question=question, kind="web", answer=answer, answer_truncated=truncated,
-                            web_sources=[WebSource(**s) for s in found["sources"] if s.get("url")])
+                            web_provider="Gemini (Google Search)", web_sources=[WebSource(**s) for s in found["sources"] if s.get("url")])
+
+    async def _quote(self, state: ConversationState, question: str) -> AskResponse:
+        """Stock price: built from the provider's fields, never by a model. Falls back to the cited web search."""
+        self._running("web_search", "Fetching a market quote")
+        mark = time.monotonic()
+        self.sources = []
+        try:
+            symbol, company = await asyncio.to_thread(market.resolve_symbol, question)
+            q = await asyncio.to_thread(market.quote, symbol)
+        except Exception as exc:
+            self._event("web_search", "failed", mark, f"Quote lookup: {plain_error(exc)}")
+            return await self._web(state, question, question)
+        self.verification.checks = [DeterministicCheck(name="quote", status="passed", detail=f"{q['symbol']} from {q['provider']}, as of {q['as_of_utc']}")]
+        self.verification.degraded_reasons.append(
+            f"Live market data from {q['provider']} ({q['data_delay']}), not from your data. Market {q['market_state']}.")
+        self._event("web_search", "succeeded", mark, f"{q['symbol']} quote" + (" (cached)" if q["cache_age_s"] else ""))
+        source = WebSource(n=1, title=f"{q['symbol']} quote", publisher=q["provider"], url=q["source_url"], published=q["as_of_utc"], retrieved_at=q["fetched_at_utc"])
+        return self._finish("ANSWERED", state, question=question, kind="web", answer=market.quote_answer(q, company),
+                            web_provider=f"{q['provider']} (market data)", web_sources=[source])
+
+    async def _news(self, state: ConversationState, question: str, why: str) -> AskResponse:
+        """Headlines list (titles, outlets, dates, links) when the grounded search is unavailable; no model summary."""
+        self._running("web_search", "Fetching headlines")
+        mark = time.monotonic()
+        try:
+            found = await asyncio.to_thread(market.news, question)
+        except Exception as exc:
+            self._event("web_search", "failed", mark, f"Headlines: {plain_error(exc)}")
+            return self._finish("ERROR", state, kind="web", answer=f"Live search didn't work, so I won't guess: {plain_error(exc)}", error_code="web_unavailable")
+        if not found["items"]:
+            self._event("web_search", "failed", mark, "no headlines")
+            return self._finish("ERROR", state, kind="web", answer="No headlines came back for that, so I won't guess.", error_code="web_unavailable")
+        outlets = len({i["publisher"] for i in found["items"]})
+        self.verification.checks = [DeterministicCheck(name="citations", status="passed" if outlets >= 3 else "warning",
+                                                       detail=f"{len(found['items'])} headline(s) from {outlets} outlet(s)")]
+        self.verification.degraded_reasons.append(f"{why}, so these are Google News headlines ({found['retrieved_at']}), not a summary.")
+        self._event("web_search", "succeeded", mark, f"{len(found['items'])} headline(s)")
+        sources = [WebSource(n=n, title=i["title"], publisher=i["publisher"], url=i["url"], published=i["published"], retrieved_at=found["retrieved_at"])
+                   for n, i in enumerate(found["items"], 1)]
+        return self._finish("ANSWERED", state, question=question, kind="web", answer=market.news_answer(found),
+                            web_provider="Google News (headlines)", web_sources=sources)
 
     def _stale_sources(self) -> list[str]:
         """Shared tables (uploads are fresh by definition) older than their SLA."""

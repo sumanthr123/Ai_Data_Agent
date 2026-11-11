@@ -9,6 +9,8 @@ assistant. Design and measurements: ARCHITECTURE.md.
 2. The Analyst's plan call also routes: `CHAT`, `DOCS` (`knowledge.py`, BM25 over the repo docs), `CODE`
    (`code_check.py`: SQL planned with `EXPLAIN`, Python parsed, never executed), `WEB` (`backend/services/web_search.py`,
    one grounded Google Search; off while `GEMINI_API_KEY` is unset), `CLARIFY`, `INSUFFICIENT_SCHEMA`, or `READY` with SQL.
+   Stock-price questions skip the plan: `backend/services/market.py` builds the answer from Yahoo Finance chart fields (no model;
+   falls back to `WEB`). News falls back to Google News headlines when `WEB` is off or fails. `/api/health/live-sources` probes the hosts.
 3. Data: `sql_guard.py` (read-only, approved tables) and `joins.py` (fan-out) before `warehouse.py` runs it; the
    Analyst drafts; `grounding.py` checks figures, causes and completeness; the Reviewer (a different model family)
    can veto; at most one correction.

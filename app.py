@@ -22,6 +22,13 @@ app.include_router(ask.router)
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
+
+@app.get("/api/health/live-sources", include_in_schema=False)
+def live_sources() -> dict[str, dict[str, str]]:
+    """Which live-data hosts this app can reach (Free Edition limits outbound traffic). No keys are sent."""
+    from backend.services import market
+    return {"hosts": market.reachability()}
+
 DIST = Path(__file__).parent / "frontend" / "dist"
 if (DIST / "assets").exists():
     app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")

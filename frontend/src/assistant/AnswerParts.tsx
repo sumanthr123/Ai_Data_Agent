@@ -98,7 +98,7 @@ export function ModelsUsed({ r }: { r: AskResponse }) {
     const names = [...new Set(ok.filter((c) => c.role === role).map((c) => modelLabel(c.endpoint)))]
     return names.length ? [`${label} ${names.join(', ')}`] : []
   })
-  if (r.kind === 'web' && r.web_sources?.length) parts.push('Web search by Gemini (Google Search)')
+  if (r.kind === 'web' && r.web_sources?.length) parts.push(r.web_provider ? `Web data from ${r.web_provider}` : 'Web search by Gemini (Google Search)')
   if (!parts.length) return null
   return <p className="text-[11.5px] text-zinc-400">Models: {parts.join(' · ')}</p>
 }

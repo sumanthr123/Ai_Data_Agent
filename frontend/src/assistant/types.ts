@@ -64,7 +64,7 @@ export interface AskResponse {
   kind: 'data' | 'web' | 'docs' | 'code' | 'chat'
   status: AskStatus; answer: string; answer_truncated: boolean; clarifying_question: string | null; hypotheses: string[]
   assumptions: string[]; query_id: string | null; sql: string | null; filters: string[]; result: ResultPreview | null
-  sources: SourceInfo[]; web_sources?: Source[]; council?: CouncilInfo | null; doc_sources?: DocSource[]; code?: CodeInfo | null; verification: Verification; auth: { mode: 'user' | 'service_principal'; disclosure: string }
+  sources: SourceInfo[]; web_sources?: Source[]; web_provider?: string; council?: CouncilInfo | null; doc_sources?: DocSource[]; code?: CodeInfo | null; verification: Verification; auth: { mode: 'user' | 'service_principal'; disclosure: string }
   state: ConversationState; events: StageEvent[]; total_ms: number
 }
 

@@ -116,7 +116,7 @@ class LiveQuestionTests(unittest.TestCase):
 
     def test_web_search_off_says_so_without_searching(self):
         with unittest.mock.patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
-            r, models, data = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?")
+            r, models, data = run({CFG.analyst: [WEB_PLAN]}, question="Weather in Seattle today?")
         self.assertEqual((r.status, r.kind, r.answer), ("ANSWERED", "web", WEB_OFF))
         self.assertEqual((len(models.seen), data.executed), (0, []))  # an obvious live question isn't planned
         self.assertNotIn("web_search", [e.stage for e in r.events])
@@ -124,7 +124,7 @@ class LiveQuestionTests(unittest.TestCase):
     def test_failed_search_never_guesses(self):
         def down(_: str) -> dict:
             raise RuntimeError("Web search couldn't be reached")
-        r, _, _ = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?", search=down)
+        r, _, _ = run({CFG.analyst: [WEB_PLAN]}, question="Weather in Seattle today?", search=down)
         self.assertEqual(r.status, "ERROR")
         self.assertIn("won't guess", r.answer)
 

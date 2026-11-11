@@ -257,6 +257,7 @@ class AskResponse(BaseModel):
     data_as_of: dict[str, str] = {}  # table -> latest date in its data
     freshness_unmet: bool = False  # the question needs newer data than the sources hold
     web_sources: list[WebSource] = []
+    web_provider: str = ""  # who answered a web question: the grounded search, a market-data feed or a headlines feed
     council: CouncilInfo | None = None
     doc_sources: list[DocSource] = []
     code: CodeInfo | None = None
