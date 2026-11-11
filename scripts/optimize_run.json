@@ -1,6 +1,6 @@
 {"run_name": "consensus-agent-optimize-{{LABEL}}",
  "environments": [{"environment_key": "py", "spec": {"client": "2", "dependencies": [
-   "-r /Workspace/Users/{{USER}}/consensus-agent-optimize/requirements.txt", "nodejs-wheel==24.19.0", "ruff==0.17.4", "vulture==2.16", "deptry==0.25.1", "pip-audit"]}}],
+   "-r /Workspace/Users/{{USER}}/consensus-agent-optimize/requirements.txt", "nodejs-wheel==24.19.0", "ruff==0.17.4", "vulture==2.16", "deptry==0.25.1", "pip-audit==2.10.1"]}}],
  "tasks": [{"task_key": "measure", "environment_key": "py", "spark_python_task": {"source": "WORKSPACE",
    "python_file": "/Workspace/Users/{{USER}}/consensus-agent-optimize/scripts/optimize_measure.py",
    "parameters": ["--root", "/Workspace/Users/{{USER}}/consensus-agent-optimize", "--warehouse-id", "{{WAREHOUSE_ID}}",

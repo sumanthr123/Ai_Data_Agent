@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import io
 import json
 import os
@@ -79,6 +80,13 @@ def node_tools() -> tuple[Path, str, str]:
     return home, str(home / "bin" / "node"), str(home / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js")
 
 
+@functools.cache
+def site_install() -> tuple[Path, dict[str, Any]]:
+    """requirements.txt resolved into an empty folder: what the app installs, without the job's own tools."""
+    target = Path(tempfile.mkdtemp()) / "site"
+    return target, tool([sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "--target", str(target), "-r", "requirements.txt"], keep=3000)
+
+
 def part_tests() -> dict[str, Any]:
     buf = io.StringIO()
     result = in_thread(lambda: unittest.TextTestRunner(stream=buf, verbosity=1).run(
@@ -107,8 +115,11 @@ def part_static(root: Path) -> dict[str, Any]:
         "deptry": tool([sys.executable, "-m", "deptry", ".", "--requirements-files", "requirements.txt", "--extend-exclude", "frontend|data",
                         "--per-rule-ignores", ignores]),
         "deptry_ignored": exceptions,
-        "pip_audit": tool([sys.executable, "-m", "pip_audit", "-r", "requirements.txt", "--progress-spinner", "off"], keep=6000),
     }
+    # The job sandbox cannot create the virtual env `pip-audit -r` needs, so audit the same resolved install the size part measures.
+    target, install = site_install()
+    out["pip_audit"] = (tool([sys.executable, "-m", "pip_audit", "--path", str(target), "--progress-spinner", "off"], keep=6000)
+                        if install["rc"] == 0 else {"rc": None, "out": "requirements install failed: " + install["out"]})
     if out["deptry"]["rc"] not in (0, 1):
         out["deptry_help"] = tool([sys.executable, "-m", "deptry", "--help"], keep=6000)
     work, env, install = frontend_copy(root)
@@ -124,8 +135,7 @@ def part_static(root: Path) -> dict[str, Any]:
 
 def part_size(root: Path) -> dict[str, Any]:
     out: dict[str, Any] = {}
-    target = Path(tempfile.mkdtemp()) / "site"
-    install = tool([sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "--target", str(target), "-r", "requirements.txt"], keep=3000)
+    target, install = site_install()
     out["python"] = ({"install_mb": size_mb(target), "resolved_packages": len(list(target.glob("*.dist-info")))} if install["rc"] == 0
                      else {"error": install["out"]})
     work, _, install = frontend_copy(root)

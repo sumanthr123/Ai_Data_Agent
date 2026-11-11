@@ -1,0 +1,75 @@
+{
+ "label": "phase3",
+ "python": "3.11.10",
+ "parts": [
+  "static",
+  "size"
+ ],
+ "static": {
+  "versions": {
+   "ruff": "ruff 0.17.4",
+   "vulture": "vulture 2.16",
+   "deptry": "deptry 0.25.1",
+   "pip_audit": "pip-audit 2.10.1"
+  },
+  "ruff": {
+   "rc": 0,
+   "out": "\u001b[1;32mAll checks passed!\u001b[0m\n"
+  },
+  "vulture_80": {
+   "rc": 3,
+   "out": "backend/tests/test_ask.py:639: unused variable 'method' (100% confidence)\nbackend/tests/test_ingest.py:62: unused variable 'overwrite' (100% confidence)\n"
+  },
+  "vulture_60": {
+   "rc": 3,
+   "out": "app.py:21: unused function 'health' (60% confidence)\napp.py:26: unused function 'live_sources' (60% confidence)\napp.py:37: unused function 'spa' (60% confidence)\nbackend/ask/contracts.py:28: unused variable 'cited_metrics' (60% confidence)\nbackend/ask/contracts.py:37: unused variable 'cited_metrics' (60% confidence)\nbackend/ask/contracts.py:42: unused variable 'severity' (60% confidence)\nbackend/ask/contracts.py:78: unused variable 'last_query_id' (60% confidence)\nbackend/ask/contracts.py:200: unused variable 'retrieved_at' (60% confidence)\nbackend/ask/contracts.py:207: unused variable 'excerpt' (60% confidence)\nbackend/ask/contracts.py:248: unused variable 'answer_truncated' (60% confidence)\nbackend/ask/contracts.py:278: unused variable 'distinct_approx' (60% confidence)\nbackend/ask/contracts.py:289: unused variable 'profiled_at' (60% confidence)\nbackend/ask/contracts.py:304: unused variable 'join_keys' (60% confidence)\nbackend/ask/contracts.py:310: unused variable 'refreshed_at' (60% confidence)\nbackend/ask/contracts.py:337: unused variable 'rejected_row_count' (60% confidence)\nbackend/ask/orchestrator.py:870: unused attribute 'last_query_id' (60% confidence)\nbackend/routers/ask.py:160: unused function 'identity' (60% confidence)\nbackend/routers/ask.py:224: unused function 'export_csv' (60% confidence)\nbackend/routers/ask.py:266: unused function 'feedback' (60% confidence)\nbackend/routers/ask.py:327: unused function 'delete_upload' (60% confidence)\nbackend/services/compare.py:56: unused variable 'a_missing' (60% confidence)\nbackend/services/compare.py:57: unused variable 'b_missing' (60% confidence)\nbackend/tests/test_ask.py:269: unused method 'log_message' (60% confidence)\nbackend/tests/test_ask.py:272: unused method 'do_POST' (60% confidence)\nbackend/tests/test_ask.py:639: unused variable 'method' (100% confidence)\nbackend/tests/test_ingest.py:62: unused variable 'overwrite' (100% confidence)\ndata/pipelines/bronze.py:19: unused function 'snapshots' (60% confidence)\ndata/pipelines/bronze.py:31: unused function 'changes' (60% confidence)\ndata/pipelines/silver.py:34: unused function 'orders_changes' (60% confidence)\n"
+  },
+  "deptry": {
+   "rc": 0,
+   "out": "Scanning 48 files...\n\n\u001b[1m\u001b[32mSuccess! No dependency issues found.\u001b[m\n"
+  },
+  "deptry_ignored": {
+   "DEP002": {
+    "uvicorn": "the app.yaml command; started as a program, never imported",
+    "python-multipart": "FastAPI imports it at runtime for the upload route (UploadFile, Form) in backend/routers/ask.py"
+   },
+   "DEP003": {
+    "nodejs_wheel": "job-only tool for the frontend steps; installed by the job specs in scripts/*_run.json, the app does not need it"
+   }
+  },
+  "pip_audit": {
+   "rc": 1,
+   "out": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/__main__.py\", line 8, in <module>\n    audit()\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_cli.py\", line 554, in audit\n    for spec, vulns in auditor.audit(source):\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_audit.py\", line 68, in audit\n    for dep, vulns in self._service.query_all(specs):\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_service/interface.py\", line 179, in query_all\n    for spec in specs:\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_dependency_source/requirement.py\", line 134, in collect\n    yield from self._collect_from_files(collect_files)\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_dependency_source/requirement.py\", line 180, in _collect_from_files\n    ve.create(ve_dir)\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_virtual_env.py\", line 80, in create\n    return super().create(env_dir)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.11/venv/__init__.py\", line 76, in create\n    self._setup_pip(context)\n  File \"/usr/lib/python3.11/venv/__init__.py\", line 358, in _setup_pip\n    self._call_new_python(context, '-m', 'ensurepip', '--upgrade',\n  File \"/usr/lib/python3.11/venv/__init__.py\", line 354, in _call_new_python\n    subprocess.check_output(args, **kwargs)\n  File \"/usr/lib/python3.11/subprocess.py\", line 466, in check_output\n    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.11/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/tmpaehxsgb0/bin/python3.11', '-m', 'ensurepip', '--upgrade', '--default-pip']' returned non-zero exit status 1.\n"
+  },
+  "npm_ci": {
+   "rc": 0,
+   "out": "\nadded 86 packages in 5s\nnpm notice\nnpm notice New major version of npm available! 11.17.0 -> 12.2.2\nnpm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2\nnpm notice To update run: npm install -g npm@12.2.2\nnpm notice\n"
+  },
+  "npm_audit": {
+   "rc": 0,
+   "out": "found 0 vulnerabilities\n"
+  },
+  "knip": {
+   "rc": 1,
+   "out": "\u001b[93m\u001b[4mUnused files\u001b[24m\u001b[39m (3)\nsrc/assistant/followups.test.ts\nsrc/assistant/format.test.ts   \nsrc/lib/markdown.test.ts       \n\u001b[93m\u001b[4mUnused exports\u001b[24m\u001b[39m (1)\nsafeHref  function  src/lib/markdown.ts:4:17\n"
+  },
+  "frontend_tests": {
+   "rc": 0,
+   "out": "\u001b[32m\u2714 drill-down skips dimensions already used, plus comparison and trend \u001b[90m(2.187041ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 no trend for an answer that is already a time series, no comparison without a year \u001b[90m(0.360737ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 high-cardinality columns are never suggested \u001b[90m(0.252341ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 one-line SQL is laid out by clause; multi-line SQL is untouched \u001b[90m(1.130659ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 ids, ZIP codes and codes are never charted as measures \u001b[90m(0.490743ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 NULL is shown as NULL, not zero \u001b[90m(15.45554ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 only http(s) and mailto links are allowed \u001b[90m(0.983696ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 markdown links render as links instead of raw text \u001b[90m(1.323751ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 unsafe links fall back to their text \u001b[90m(0.196936ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 citation markers resolve only to known sources \u001b[90m(0.248223ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 bold, code and LaTeX are cleaned up \u001b[90m(0.241828ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 common LaTeX symbols become plain characters \u001b[90m(0.410412ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 LaTeX function names lose their backslash \u001b[90m(0.18758ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 currency keeps its dollar signs; LaTeX math loses them \u001b[90m(0.213879ms)\u001b[39m\u001b[39m\n\u001b[34m\u2139 tests 14\u001b[39m\n\u001b[34m\u2139 suites 0\u001b[39m\n\u001b[34m\u2139 pass 14\u001b[39m\n\u001b[34m\u2139 fail 0\u001b[39m\n\u001b[34m\u2139 cancelled 0\u001b[39m\n\u001b[34m\u2139 skipped 0\u001b[39m\n\u001b[34m\u2139 todo 0\u001b[39m\n\u001b[34m\u2139 duration_ms 377.535708\u001b[39m\n"
+  },
+  "frontend_types": {
+   "rc": 0,
+   "out": ""
+  }
+ },
+ "size": {
+  "python": {
+   "install_mb": 163.0,
+   "resolved_packages": 70
+  },
+  "node": {
+   "install_mb": 171.7,
+   "resolved_packages": 164
+  }
+ }
+}
