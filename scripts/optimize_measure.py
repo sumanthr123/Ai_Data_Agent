@@ -142,20 +142,23 @@ def part_start(root: Path) -> dict[str, Any]:
     else:
         out["import_app_median_s"] = statistics.median(out["import_app_s"])
     log = tempfile.TemporaryFile()
+    direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # the job's outbound proxy can't reach localhost
+    last = ""
     began = time.perf_counter()
     server = subprocess.Popen([sys.executable, "-m", "uvicorn", "app:app", "--port", str(PORT), "--log-level", "warning"], cwd=root, env=env, stdout=log, stderr=log)
     try:
         while time.perf_counter() - began < 90 and server.poll() is None:
             try:
-                with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/api/health", timeout=2) as r:
+                with direct.open(f"http://127.0.0.1:{PORT}/api/health", timeout=2) as r:
                     if r.status == 200:
                         out["server_ready_s"] = round(time.perf_counter() - began, 2)
                         break
-            except OSError:
+            except OSError as exc:
+                last = repr(exc)
                 time.sleep(0.1)
         if "server_ready_s" not in out:
             log.seek(0)
-            out["server_error"] = f"not ready (exit {server.poll()}): " + log.read().decode(errors="replace")[-1500:]
+            out["server_error"] = f"not ready (exit {server.poll()}, last error {last}): " + log.read().decode(errors="replace")[-1500:]
     finally:
         server.terminate()
         server.wait(15)
