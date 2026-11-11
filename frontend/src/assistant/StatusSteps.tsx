@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import type { Stage, StageEvent, StageStatus } from './types'
 
 /** Action labels, not anthropomorphic ones. */
-export const LABELS: Partial<Record<Stage, string>> = {
+const LABELS: Partial<Record<Stage, string>> = {
   context: 'Reading table metadata', clarify: 'Checking the question', generate_sql: 'Planning the answer', web_search: 'Searching the web',
   retrieve: 'Searching project docs', council: 'Independent models drafting', execute: 'Running query', draft: 'Writing answer',
   review: 'Independent review', correct: 'Correcting', adjudicate: 'Judging the drafts', complete: 'Complete',
@@ -23,7 +23,7 @@ export function StatusIcon({ status }: { status: StageStatus | 'pending' }) {
 export interface Step { stage: Stage; status: StageStatus | 'pending'; ms: number; detail: string }
 
 /** Steps reflect real events only: a step stays pending until the server reports it running. */
-export function stepsFor(stages: StageEvent[], live: boolean): Step[] {
+function stepsFor(stages: StageEvent[], live: boolean): Step[] {
   const seen = new Set(stages.map((s) => s.stage))
   // A live question can go straight to the web: then no table or planning step ran, and none is shown.
   const main: Stage[] = seen.has('web_search') && !seen.has('context') ? ['web_search', 'complete']
@@ -39,7 +39,7 @@ export function stepsFor(stages: StageEvent[], live: boolean): Step[] {
   return live ? steps : steps.filter((s) => s.status !== 'pending')
 }
 
-export const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`
+const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`
 
 function Elapsed({ since }: { since: number }) {
   const [now, setNow] = useState(Date.now)
@@ -51,7 +51,7 @@ function Elapsed({ since }: { since: number }) {
 }
 
 /** Vertical step list. Not a live region: the page announces only start, ready, stopped and errors. */
-export function StatusSteps({ stages, live, startedAt, compact = false }: { stages: StageEvent[]; live: boolean; startedAt?: number; compact?: boolean }) {
+function StatusSteps({ stages, live, startedAt, compact = false }: { stages: StageEvent[]; live: boolean; startedAt?: number; compact?: boolean }) {
   const steps = stepsFor(stages, live)
   if (!steps.length) return null
   return (

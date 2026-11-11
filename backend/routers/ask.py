@@ -48,7 +48,7 @@ def _principal(request: Request) -> str | None:
 
 def _app_run(sql: str, parameters: dict[str, str | None] | None = None) -> Execution:
     """Backend-owned SQL (registry, ingestion, profiling) as the app; never model-written SQL."""
-    return execute(_app_client(), sql, warehouse_id=ask_settings.warehouse_id, timeout_s=120, row_limit=10_000,
+    return execute(_app_client(), sql, warehouse_id=ask_settings.warehouse_id, timeout_s=ask_settings.app_statement_timeout_s, row_limit=ask_settings.app_statement_row_limit,
                    byte_limit=ask_settings.statement_byte_limit, parameters=parameters)
 
 
@@ -227,7 +227,7 @@ async def export_csv(body: ExportRequest, request: Request) -> Response:
     data_w, _, _ = _clients(request)
     owner = user_key(_principal(request))
     datasets = [d.lower() for d in body.datasets] or [ask_settings.default_dataset.lower()]
-    if not all(registry().can_read(d, owner) for d in datasets):
+    if not all(await asyncio.gather(*(asyncio.to_thread(registry().can_read, d, owner) for d in datasets))):
         raise HTTPException(404, "Dataset not found or not available to you.")
     try:
         guarded = sql_guard.guard(body.sql, set(datasets))
@@ -289,9 +289,12 @@ def _cell(value) -> str:
 @router.get("/ask/datasets", response_model=list[DatasetRecord])
 async def datasets(request: Request) -> list[DatasetRecord]:
     """Shared datasets plus the caller's own uploads (never anyone else's), each with its profile and columns."""
-    records = registry().visible(user_key(_principal(request)))
+    records = await asyncio.to_thread(registry().visible, user_key(_principal(request)))
     sweep_expired()  # the listing just woke the warehouse anyway
-    return [await asyncio.to_thread(_with_profile, r) if r.kind == "shared" else r for r in records]
+
+    async def profiled(r: DatasetRecord) -> DatasetRecord:
+        return await asyncio.to_thread(_with_profile, r) if r.kind == "shared" else r
+    return list(await asyncio.gather(*(profiled(r) for r in records)))
 
 
 def _with_profile(record: DatasetRecord) -> DatasetRecord:

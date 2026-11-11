@@ -1,0 +1,43 @@
+{
+  "profile": "dbc-a4a6c6d1-83fb",
+  "host": "https://dbc-a4a6c6d1-83fb.cloud.databricks.com",
+  "codebase_source": "local git repo (this folder); remote https://github.com/sumanthr123/Ai_Data_Agent.git",
+  "base_branch": "spec-graph-medallion",
+  "base_commit": "da74d90",
+  "work_branch": "optimize/cleanup",
+  "app_name": "ai-data-agent",
+  "app_source_path": "/Workspace/Users/sumanth6543210@gmail.com/consensus-agent-src",
+  "dev_copy_path": "/Workspace/Users/sumanth6543210@gmail.com/consensus-agent-dev",
+  "optimize_copy_path": "/Workspace/Users/sumanth6543210@gmail.com/consensus-agent-optimize",
+  "serving_endpoint": null,
+  "serving_endpoint_reason": "the agent is not served from Model Serving; it runs inside the app",
+  "bundle_targets": {"root databricks.yml": ["dev", "prod"], "data/databricks.yml": ["dev", "prod"]},
+  "bundle_note": "the root bundle's app (consensus-agent) was never deployed: the workspace allows 3 apps and all 3 exist",
+  "jobs": {
+    "ai-data-agent-checks": 544093914143207,
+    "ai-data-agent-orders-refresh": 1056717283046963,
+    "ai-data-agent-gdpr-delete": 819316101483389,
+    "[dev] ai-data-agent-orders-refresh": 345238024486872,
+    "[dev] ai-data-agent-gdpr-delete": 949783332092501
+  },
+  "runtime_type": "Databricks App running its own FastAPI server (uvicorn app:app); not Agent Runtime, not Model Serving",
+  "framework": "other: custom orchestrator (backend/ask) with a LangGraph council",
+  "model_endpoints": {
+    "analyst": "databricks-gpt-oss-120b",
+    "reviewer": "databricks-llama-4-maverick",
+    "adjudicator": "databricks-qwen35-122b-a10b",
+    "council": ["databricks-gpt-oss-120b", "databricks-llama-4-maverick", "gemini-3-5-flash/gemini-3-5-flash"]
+  },
+  "warehouse_id": "3d46aa484790192c",
+  "deptry_exceptions": {
+    "DEP002": {
+      "uvicorn": "the app.yaml command; started as a program, never imported",
+      "python-multipart": "FastAPI imports it at runtime for the upload route (UploadFile, Form) in backend/routers/ask.py"
+    },
+    "DEP003": {
+      "nodejs_wheel": "job-only tool for the frontend steps; installed by the job specs in scripts/*_run.json, the app does not need it"
+    }
+  },
+  "measure_command":"scripts/optimize.sh <label> [parts] [repeat]",
+  "local_runs": "none: tests, static analysis, installs and questions all run in a Databricks job"
+}

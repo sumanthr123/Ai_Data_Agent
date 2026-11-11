@@ -14,7 +14,7 @@ function read(): ThemePref {
 }
 
 /** The resolved theme, for code that needs real colors (charts). Re-evaluates when the OS or the user's pick changes. */
-export function resolvedTheme(): 'light' | 'dark' {
+function resolvedTheme(): 'light' | 'dark' {
   const forced = document.documentElement.dataset.theme
   if (forced === 'light' || forced === 'dark') return forced
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'

@@ -431,7 +431,7 @@ async def main(only: set[int] | None) -> None:
     cfg.check()
 
     def run(sql: str, parameters: dict | None = None):
-        return execute(w, sql, warehouse_id=cfg.warehouse_id, timeout_s=120, row_limit=10_000, byte_limit=cfg.statement_byte_limit, parameters=parameters)
+        return execute(w, sql, warehouse_id=cfg.warehouse_id, timeout_s=cfg.app_statement_timeout_s, row_limit=cfg.app_statement_row_limit, byte_limit=cfg.statement_byte_limit, parameters=parameters)
 
     ctx = Ctx(w, cfg, run, registry=MemoryRegistry(cfg, None))
     setup(ctx)

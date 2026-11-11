@@ -665,7 +665,7 @@ class GuardrailTests(unittest.TestCase):
         rows = [{"region": f"r{i}", "total_sales": float(i), "note": "x" * 200} for i in range(50)]
         result = analysis.shape(["region", "total_sales", "note"], ["STRING", "DOUBLE", "STRING"], rows, False)
         text = grounding.summary(result, 50)
-        self.assertLessEqual(len(text), 5000)
+        self.assertLessEqual(len(text), 4000)
         self.assertIn("of 50", json.loads(text)["rows_shown"])
         self.assertEqual(json.loads(text)["stats"]["total_sales"]["max"], 49.0)  # stats still cover every row
 

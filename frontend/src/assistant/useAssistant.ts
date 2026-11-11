@@ -24,7 +24,7 @@ function save(conversations: Conversation[]) {
 
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
-export function newConversation(datasets: string[]): Conversation {
+function newConversation(datasets: string[]): Conversation {
   return { id: newId(), title: 'New conversation', updatedAt: Date.now(), turns: [], state: null, datasets }
 }
 

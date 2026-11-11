@@ -1,5 +1,7 @@
-# Databricks Asset Bundle: `databricks bundle deploy -t dev` then `databricks bundle run consensus_agent -t dev`.
-# Build the UI first: (cd frontend && npm ci && npm run build). frontend/dist is uploaded with the source.
+# Databricks Asset Bundle for the app. Not deployed today: the workspace allows 3 apps and all 3 exist, so production
+# is released with scripts/deploy.sh. With a free slot: `databricks bundle deploy -t dev`, then
+# `databricks bundle run consensus_agent -t dev`. frontend/dist comes from the checks job (scripts/check.sh), never a local build.
+# The serving endpoints below must match the models named in app.yaml.
 bundle:
   name: databricks-consensus-agent
 
@@ -22,6 +24,14 @@ resources:
         - name: gpt-oss-120b
           serving_endpoint:
             name: databricks-gpt-oss-120b
+            permission: CAN_QUERY
+        - name: llama-4-maverick
+          serving_endpoint:
+            name: databricks-llama-4-maverick
+            permission: CAN_QUERY
+        - name: qwen35-122b-a10b
+          serving_endpoint:
+            name: databricks-qwen35-122b-a10b
             permission: CAN_QUERY
         - name: gemini-3-5-flash
           serving_endpoint:

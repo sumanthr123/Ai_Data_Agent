@@ -17,7 +17,7 @@ CAUSAL = re.compile(r"\b(because|(?:due|owing)(?:\s+\w+){0,2}\s+to|(?:caused|dri
 _SENTENCE_END = re.compile(r"(?<=[.!?])(\s+)")
 
 
-def summary(result: ResultSet, max_rows: int, max_chars: int = 5000) -> str:
+def summary(result: ResultSet, max_rows: int, max_chars: int = 4000) -> str:
     """Compact result for a model: shape, column stats (only when the result is complete) and as many of the first
     rows as fit in max_chars (about a quarter as many tokens). Rows are arrays in column order; floats keep 4 decimals."""
     out: dict[str, Any] = {"columns": [f"{c} {t}" for c, t in zip(result.columns, result.column_types)],

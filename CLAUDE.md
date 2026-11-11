@@ -50,3 +50,8 @@ the dev copy. Live evals: the job `ai-data-agent-checks`, or a submit with `--ev
 ## Commands
 Never run the app, tests, builds or evals locally; see Tests above. A workstation only edits, commits and starts jobs.
 Deploy: `scripts/deploy.sh` after `scripts/check.sh` (backs up, deploys, smoke-tests; production deploys need explicit approval).
+
+## Optimize run (branch `optimize/cleanup`)
+State: `PROGRESS.md`, `optimize.config.json`, `BASELINE.md`, `INVENTORY.md`. Profile `dbc-a4a6c6d1-83fb`. Measure with
+`scripts/optimize.sh <label> [tests,static,size,start,questions] [repeat]` (Databricks job; result in `optimize_out/<label>.json`).
+Never commit to `main`, `databricks-assistant` or `spec-graph-medallion`; never deploy to `ai-data-agent` from this branch.

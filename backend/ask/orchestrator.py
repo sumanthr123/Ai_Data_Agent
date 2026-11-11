@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import importlib
 import json
 import logging
 import random
@@ -24,7 +25,7 @@ from typing import Any, Callable, Literal, Protocol, TypeVar
 from databricks.sdk import WorkspaceClient
 from pydantic import BaseModel, ValidationError
 
-from backend.ask import code_check, council_graph, freshness, logs, grounding, joins, knowledge, profiling, prompts, sql_guard
+from backend.ask import code_check, freshness, logs, grounding, joins, knowledge, profiling, prompts, sql_guard
 from backend.ask.budget import Budget, BudgetExhausted
 from backend.ask.cache import ResultCache, normalize_sql
 from backend.ask.contracts import (
@@ -211,7 +212,7 @@ class Orchestrator:
         self._running("context")
         mark = time.monotonic()
         denied = "Couldn't open {}: it doesn't exist or you don't have access."
-        readable = [await asyncio.to_thread(self.registry.can_read, d, self.user_key) for d in datasets]
+        readable = await asyncio.gather(*(asyncio.to_thread(self.registry.can_read, d, self.user_key) for d in datasets))
         if not all(readable):
             # Unregistered tables and other users' uploads look the same: neither is acknowledged to exist.
             self._event("context", "failed", mark, "dataset not available to this user")
@@ -223,7 +224,7 @@ class Orchestrator:
             return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)), error_code="not_found")
         self.versions = {t.full_name.lower(): t.updated_at or "" for t in tables}
         self.meta = {t.full_name.lower(): t.columns for t in tables}
-        described = [await self._describe(t) for t in tables]
+        described = await asyncio.gather(*(self._describe(t) for t in tables))
         self.sources = [s for s, _ in described]
         state.active_datasets = datasets
 
@@ -432,7 +433,7 @@ class Orchestrator:
     async def _draft(self, context: dict[str, Any], question: str, sql: str, assumptions: list[str], issues: list[Issue]) -> ProposalPayload:
         self._running("draft")
         mark = time.monotonic()
-        extra: dict[str, Any] = {"sql": sql, "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model))}
+        extra: dict[str, Any] = {"sql": sql, "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model, self.cfg.max_result_chars_to_model))}
         if issues:
             extra["review_issues"] = [i.model_dump() for i in issues]
         draft = await self._call("analyst", "revise" if issues else "draft", prompts.ANALYST_DRAFT.replace("{words}", str(self.cfg.max_answer_words)),
@@ -447,7 +448,7 @@ class Orchestrator:
             self._event("review", "skipped", mark, "Reviewer unavailable")
             return ReviewPayload(status="DEGRADED")
         payload = {**context, "sql": self.proposal.sql, "assumptions": self.proposal.assumptions,
-                   "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model)),
+                   "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model, self.cfg.max_result_chars_to_model)),
                    "draft_answer": self.proposal.draft_answer, "hypotheses": self.proposal.hypotheses,
                    "automated_checks": [c.model_dump() for c in checks if c.status != "passed"]}
         try:
@@ -488,6 +489,8 @@ class Orchestrator:
         async def judge(tally: Any) -> AskResponse:
             return await self._council_judge(tally, context, state, question)
 
+        # LangGraph is only needed here, so it loads on the first council run instead of at every worker start.
+        council_graph = await asyncio.to_thread(importlib.import_module, "backend.ask.council_graph")
         graph = council_graph.build(draft, verify, judge)
         return (await graph.ainvoke({"endpoints": drafters, "drafts": []}))["response"]
 
@@ -561,7 +564,7 @@ class Orchestrator:
         judge = next((e for e in (cfg.adjudicator, *cfg.council_endpoints) if model_family(e) != model_family(leader)), cfg.adjudicator)
         self.council.judge = judge
         payload = {**context, "candidates": [{
-            "label": ran[i][0].label, "sql": ran[i][0].sql, "result": json.loads(grounding.summary(ran[i][1].result, cfg.max_rows_to_model, max_chars=2500)),
+            "label": ran[i][0].label, "sql": ran[i][0].sql, "result": json.loads(grounding.summary(ran[i][1].result, cfg.max_rows_to_model, max_chars=cfg.max_council_result_chars_to_model)),
             "same_values_as": [ran[j][0].label for j in groups[ran[i][0].group] if j != i]} for i in order]}
         self._running("adjudicate")
         mark = time.monotonic()
@@ -669,7 +672,7 @@ class Orchestrator:
         return parsed
 
     def _user(self, context: dict[str, Any], question: str) -> str:
-        return f"<context>{json.dumps(context, default=str)}</context>\n{_data('question', question)}"
+        return f"<context>{json.dumps(context, default=str, separators=(',', ':'))}</context>\n{_data('question', question)}"
 
     # ---- results -----------------------------------------------------------------------------------------------
 
@@ -770,7 +773,7 @@ class Orchestrator:
             detail=f"{uncited} statement(s) with figures cite no source" if uncited else f"{len(found['sources'])} source(s) cited")]
         self.verification.degraded_reasons.append(
             f"From a live web search ({found['retrieved_at']}), not from your data; only as reliable as the cited pages.")
-        self._event("web_search", "succeeded", mark, f"{len(found['sources'])} source(s)")
+        self._event("web_search", "succeeded", mark, f"{len(found['sources'])} source(s)" + (" (cached)" if found.get("cache_age_s") else ""))
         return self._finish("ANSWERED", state, question=question, kind="web", answer=answer, answer_truncated=truncated,
                             web_provider="Gemini (Google Search)", web_sources=[WebSource(**s) for s in found["sources"] if s.get("url")])
 
