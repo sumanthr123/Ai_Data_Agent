@@ -90,6 +90,10 @@ class DatabricksData:
                        on_pending=self.on_pending, start_grace_s=self.cfg.warehouse_start_grace_s)
 
 
+READ_ONLY = "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+# A request to change data (an instruction or a bare statement). Questions about results ("why did sales drop?") don't match.
+_WRITE = re.compile(r"^\s*(please\s+|can you\s+|could you\s+)?((drop|truncate|delete)\b[^?]*\b(tables?|schemas?|databases?|catalogs?|views?)\b|"
+                    r"delete\s+from\b|insert\s+into\b|update\s+\S+\s+set\b|alter\s+(table|schema|view|database|catalog)\b)", re.I)
 WEB_OFF = ("Live web search is turned off, so I can't answer questions about current events or anything outside your "
            "data. Ask about your datasets, this app, or code.")
 _CHANGE = re.compile(r"\b(drop|dropped|fall|fell|decline|declined|decrease|decreased|dip|dipped|rise|rose|increase|increased|grow|grew|growth|jump|jumped|spike|spiked)\b", re.I)
@@ -194,6 +198,8 @@ class Orchestrator:
     async def _run(self, req: AskRequest, state: ConversationState) -> AskResponse:
         cfg = self.cfg
         datasets = list(dict.fromkeys(d.strip().lower() for d in (req.datasets or state.active_datasets or [cfg.default_dataset])))
+        if _WRITE.search(req.question):
+            return self._finish("ANSWERED", state, kind="chat", answer=READ_ONLY)
         if not state.pending_clarification and not req.council:
             if _DATE_Q.search(req.question):
                 now = dt.datetime.now(dt.timezone.utc)

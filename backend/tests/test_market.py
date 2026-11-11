@@ -9,6 +9,7 @@ import unittest
 import unittest.mock
 import urllib.error
 
+from backend.ask.orchestrator import _WRITE, READ_ONLY
 from backend.services import market
 from backend.tests.test_ask import CFG, WEB_PLAN, fake_search, run
 
@@ -52,8 +53,17 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(get.call_count, 1)  # second call within the TTL is served from the cache
         self.assertGreaterEqual(again["cache_age_s"], 0)
         text = market.quote_answer(q)
-        for part in ("41.25 USD", "+1.25", "UTC", "Market open", "delayed", "not investment advice", "[1]"):
+        self.assertTrue(text.startswith(f"**HOOD** is trading at **41.25 USD** (**+1.25 / +3.12%**) as of {q['as_of_utc']} (open).\n"))
+        for part in ("| Previous Close | 40.00 USD |", "| Market State | Open |", "| Data Delay | May be delayed",
+                     "| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |"):
             self.assertIn(part, text)
+        self.assertTrue(text.endswith("*For informational purposes only; this is not investment advice.*"))
+
+    def test_quote_answer_for_a_fall_and_a_closed_market(self):
+        text = market.quote_answer({**QUOTE, "change": -1.25, "percent_change": -3.03, "market_state": "closed"})
+        self.assertIn("(**-1.25 / -3.03%**) as of 2026-11-11 15:00 UTC (closed).", text)
+        self.assertIn("| Market State | Closed; last regular-session price |", text)
+        self.assertNotIn("(**", market.quote_answer({**QUOTE, "change": None, "percent_change": None, "previous_close": None}))
 
     def test_missing_price_is_an_error_not_a_guess(self):
         empty = {"chart": {"result": [{"meta": {"symbol": "ZZZZ"}}]}}
@@ -70,7 +80,35 @@ class ProviderTests(unittest.TestCase):
         self.assertNotIn("[", injected)
         self.assertNotIn("<", injected)
         self.assertEqual(found["items"][0]["title"], "Senate passes budget")
-        self.assertIn("[3]", market.news_answer(found))
+        self.assertEqual(found["items"][0]["published"], "2026-11-10 14:00 UTC")
+        text = market.news_answer(found)
+        self.assertIn("### Sources", text)
+        self.assertIn("1. Senate passes budget [Reuters, 2026-11-10 14:00 UTC](https://news.google.com/a)", text)
+        self.assertIn("3. House vote set for Friday [Politico, 2026-11-10 12:00 UTC](https://news.google.com/c)", text)
+        self.assertNotIn("Coverage is thin", text)
+        self.assertTrue(text.endswith(f"*Retrieved via Google News at {found['retrieved_at']}.*"))
+
+    def test_thin_coverage_and_odd_dates_are_said_plainly(self):
+        found = {"query": "q", "provider": "Google News", "retrieved_at": "2026-11-11 15:00 UTC",
+                 "items": [{"title": "T", "publisher": "A", "url": "https://n/1(x)", "published": market._utc("not a date")}]}
+        text = market.news_answer(found)
+        self.assertIn("[A, not a date](https://n/1%28x%29)", text)
+        self.assertIn("Coverage is thin: only 1 outlet(s)", text)
+
+    def test_every_provider_host_is_probed_without_keys(self):
+        seen = []
+
+        def fake(req, timeout):
+            seen.append((req.host, dict(req.headers)))
+            if req.host == "api.gdeltproject.org":
+                raise OSError("no route")
+            return unittest.mock.MagicMock()
+        with unittest.mock.patch("urllib.request.urlopen", side_effect=fake):
+            hosts = market.reachability()
+        self.assertEqual(set(hosts), {"query1.finance.yahoo.com", "news.google.com", "generativelanguage.googleapis.com",
+                                      "finnhub.io", "api.twelvedata.com", "api.tavily.com", "api.gdeltproject.org"})
+        self.assertEqual((hosts["finnhub.io"], hosts["api.gdeltproject.org"]), ("reachable", "blocked (OSError)"))
+        self.assertTrue(all(set(h) == {"User-agent"} for _, h in seen))
 
     def test_429_waits_for_retry_after_then_retries(self):
         busy = urllib.error.HTTPError("u", 429, "busy", {"Retry-After": "0.01"}, io.BytesIO())
@@ -122,6 +160,18 @@ class RouteTests(unittest.TestCase):
             r, _, _ = run({CFG.analyst: [WEB_PLAN]}, question="Latest news?", search=down)
         self.assertEqual((r.status, r.web_provider), ("ANSWERED", "Google News (headlines)"))
         self.assertEqual(r.verification.checks[0].status, "warning")  # one outlet is thin coverage
+
+    def test_write_requests_get_the_exact_refusal_and_nothing_runs(self):
+        for ask in ("Drop the first table in the schema.", "DELETE FROM ai_data_agent.agent_gold.orders WHERE 1=1",
+                    "please truncate the orders table", "UPDATE orders SET sales = 0", "Insert into orders values (1)", "alter table orders add column x int"):
+            r, models, data = run({}, question=ask)
+            self.assertEqual((r.status, r.kind, r.answer), ("ANSWERED", "chat", READ_ONLY), ask)
+            self.assertEqual((models.seen, data.executed), ([], []), ask)
+
+    def test_questions_about_change_are_not_refused(self):
+        for ask in ("Why did sales drop in the West in 2017?", "Drop in profit by region?", "Which orders were deleted from the returns list?",
+                    "Update me on sales by region", "How do I write a DELETE FROM statement safely?"):
+            self.assertIsNone(_WRITE.search(ask), ask)
 
     def test_gemini_answers_name_their_provider(self):
         r, _, _ = run({}, question="What is the news today?", search=fake_search)

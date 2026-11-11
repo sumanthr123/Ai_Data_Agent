@@ -17,12 +17,16 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 _UA = "Mozilla/5.0 (compatible; DatabricksDataAgent/1.0)"
 TIMEOUT = float(os.getenv("LIVE_TIMEOUT_S", "8"))
 QUOTE_TTL_OPEN, QUOTE_TTL_CLOSED, NEWS_TTL = 30, 900, 600
-HOSTS = ("query1.finance.yahoo.com", "news.google.com", "generativelanguage.googleapis.com")
+# In use: Yahoo, Google News, Gemini. The rest are probed so an admin can see which optional providers are reachable.
+HOSTS = ("query1.finance.yahoo.com", "news.google.com", "generativelanguage.googleapis.com",
+         "finnhub.io", "api.twelvedata.com", "api.tavily.com", "api.gdeltproject.org")
+DISCLAIMER = "*For informational purposes only; this is not investment advice.*"
 
 _QUOTE_Q = re.compile(r"\b(stock|share) (price|quote)s?\b|\bstock quote\b|\bshares? (of \w+ )?trading at\b|\bprice of \w+ (stock|shares)\b", re.I)
 _NEWS_Q = re.compile(r"\b(news|headlines?)\b", re.I)
@@ -121,16 +125,15 @@ def quote(symbol: str) -> dict[str, Any]:
 
 
 def quote_answer(q: dict[str, Any], company: str = "") -> str:
-    name = q["name"] or company
-    who = f"{name} ({q['symbol']})" if name else q["symbol"]
-    move = ""
-    if q["change"] is not None:
-        sign = "+" if q["change"] >= 0 else "−"
-        move = f", {sign}{abs(q['change']):,.2f} ({sign}{abs(q['percent_change']):.2f}%) vs the previous close of {q['previous_close']:,.2f}"
-    state = "Market open" if q["market_state"] == "open" else "Market closed; this is the last regular-session price"
-    return (f"**{who}: {q['price']:,.2f} {q['currency']}**{move} [1].\n\n"
-            f"As of {q['as_of_utc']} on {q['exchange'] or 'its exchange'}. {state}. Prices {q['data_delay']}.\n\n"
-            "This is market information, not investment advice.")
+    move = f" (**{q['change']:+,.2f} / {q['percent_change']:+.2f}%**)" if q["change"] is not None else ""
+    prev = f"{q['previous_close']:,.2f} {q['currency']}".strip() if q["previous_close"] else "not available"
+    return (f"**{q['symbol']}** is trading at **{q['price']:,.2f} {q['currency']}**{move} as of {q['as_of_utc']} ({q['market_state']}).\n\n"
+            "| Field | Value |\n| --- | --- |\n"
+            f"| Previous Close | {prev} |\n"
+            f"| Market State | {q['market_state'].capitalize()}{'' if q['market_state'] == 'open' else '; last regular-session price'} |\n"
+            f"| Data Delay | {q['data_delay'].capitalize()} |\n"
+            f"| Data Provider | [{q['provider']}]({q['source_url']}) |\n\n"
+            f"{DISCLAIMER}")
 
 
 def news(query: str) -> dict[str, Any]:
@@ -146,7 +149,7 @@ def news(query: str) -> dict[str, Any]:
             if publisher and title.endswith(f" - {publisher}"):
                 title = title[: -len(publisher) - 3]
             items.append({"title": title, "publisher": publisher, "url": (it.findtext("link") or "").strip(),
-                          "published": clean(it.findtext("pubDate") or "", 40)})
+                          "published": _utc(it.findtext("pubDate") or "")})
         picked: list[dict[str, Any]] = []
         for item in items:  # one per outlet first, then fill up to 8
             if item["url"] and item["publisher"] not in seen:
@@ -158,12 +161,25 @@ def news(query: str) -> dict[str, Any]:
     return _cached(f"n:{words.lower()}", lambda _: NEWS_TTL, fetch)
 
 
+def _utc(stamp: str) -> str:
+    """RSS pubDate as 'YYYY-MM-DD HH:MM UTC'; the cleaned original text when it isn't a date."""
+    try:
+        return parsedate_to_datetime(stamp).astimezone(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    except (TypeError, ValueError):
+        return clean(stamp, 40)
+
+
 def news_answer(found: dict[str, Any]) -> str:
-    lines = [f"- {i['title']} — {i['publisher']}, {i['published']} [{n}]" for n, i in enumerate(found["items"], 1)]
+    """Headlines only (no model wrote a summary): each one linked to its outlet and time, then the retrieval line."""
+    def link(i: dict[str, Any]) -> str:
+        url = i["url"].replace("(", "%28").replace(")", "%29").replace(" ", "%20")
+        return f"[{i['publisher'] or 'Source'}, {i['published'] or 'undated'}]({url})"
+    lines = [f"{n}. {i['title']} {link(i)}" for n, i in enumerate(found["items"], 1)]
     outlets = len({i["publisher"] for i in found["items"]})
     thin = "" if outlets >= 3 else f"\n\nCoverage is thin: only {outlets} outlet(s) returned results."
-    return (f"Headlines for “{found['query']}” from Google News, retrieved {found['retrieved_at']}. "
-            "These are headlines only, not a summary; open the links for the full reports.\n\n" + "\n".join(lines) + thin)
+    return (f"These are the latest headlines for “{found['query']}”, as reported by each outlet; no summary was written, "
+            "so open the links for the full reports.\n\n### Sources\n\n" + "\n".join(lines) + thin
+            + f"\n\n*Retrieved via {found['provider']} at {found['retrieved_at']}.*")
 
 
 def reachability() -> dict[str, str]:
