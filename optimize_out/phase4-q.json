@@ -1,0 +1,1058 @@
+{
+ "label": "phase4-q",
+ "python": "3.11.10",
+ "parts": [
+  "questions"
+ ],
+ "questions": {
+  "errors": [],
+  "summary": {
+   "lakehouse_1": {
+    "runs": 5,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "context > generate_sql > execute > draft > review > complete"
+    ],
+    "median_ms": 5353,
+    "median_input_tokens": 2653,
+    "median_output_tokens": 445
+   },
+   "lakehouse_2": {
+    "runs": 5,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "context > generate_sql > execute > draft > review > complete"
+    ],
+    "median_ms": 4282,
+    "median_input_tokens": 2432,
+    "median_output_tokens": 239
+   },
+   "live": {
+    "runs": 5,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "web_search > complete"
+    ],
+    "median_ms": 0,
+    "median_input_tokens": 0,
+    "median_output_tokens": 0
+   },
+   "general": {
+    "runs": 5,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "context > retrieve > draft > complete"
+    ],
+    "median_ms": 1805,
+    "median_input_tokens": 2275,
+    "median_output_tokens": 160
+   },
+   "follow_up": {
+    "runs": 5,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "context > generate_sql > execute > draft > review > complete"
+    ],
+    "median_ms": 4251,
+    "median_input_tokens": 2849,
+    "median_output_tokens": 396
+   },
+   "write": {
+    "runs": 5,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "complete"
+    ],
+    "median_ms": 0,
+    "median_input_tokens": 0,
+    "median_output_tokens": 0
+   }
+  },
+  "overall": {
+   "median_ms": 2749.5,
+   "median_input_tokens": 2344.0,
+   "median_output_tokens": 195.0
+  },
+  "cache_tokens": "not reported: the serving endpoints in use return no cache token counts",
+  "runs": [
+   {
+    "case": "lakehouse_1",
+    "attempt": 0,
+    "question": "What were total sales by region in 2017?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2627,
+    "output_tokens": 453,
+    "reasoning_tokens": 0,
+    "total_tokens": 3080,
+    "ms": 7902,
+    "sql": true,
+    "answer": "**Total sales by region for 2017**\n\n- South: **122,905.86**\n- East: **213,082.90**\n- Central: **147,098.13**\n- West: **250,128.37**\n\nThese figures represent the sum of sales (USD) for each region during the period from January\u202f1\u202f2017 (inclusive) to January\u202f1\u202f2018 (exclusive)."
+   },
+   {
+    "case": "lakehouse_2",
+    "attempt": 0,
+    "question": "How many orders were placed in 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2413,
+    "output_tokens": 224,
+    "reasoning_tokens": 0,
+    "total_tokens": 2637,
+    "ms": 3863,
+    "sql": true,
+    "answer": "The query shows that **1315** orders were placed in 2016."
+   },
+   {
+    "case": "live",
+    "attempt": 0,
+    "question": "What is the stock price of Robinhood (HOOD) today?",
+    "status": "ANSWERED",
+    "kind": "web",
+    "reviewed": false,
+    "tools": [
+     "web_search",
+     "complete"
+    ],
+    "events": [
+     "web_search:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 138,
+    "sql": false,
+    "answer": "**HOOD** is trading at **84.58 USD** (**+3.25 / +4.00%**) as of 2026-11-11 21:00 UTC (closed).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Closed; last regular-session price |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+   },
+   {
+    "case": "general",
+    "attempt": 0,
+    "question": "Explain the difference between a Delta table and a view in two sentences.",
+    "status": "ANSWERED",
+    "kind": "docs",
+    "reviewed": false,
+    "tools": [
+     "context",
+     "retrieve",
+     "draft",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:skipped",
+     "retrieve:succeeded",
+     "draft:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "docs"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2275,
+    "output_tokens": 156,
+    "reasoning_tokens": 0,
+    "total_tokens": 2431,
+    "ms": 1931,
+    "sql": false,
+    "answer": "The provided passages do not contain information about the difference between a Delta table and a view."
+   },
+   {
+    "case": "follow_up",
+    "attempt": 0,
+    "question": "And for 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft_retry",
+     "review"
+    ],
+    "failed_calls": [
+     "draft:failed"
+    ],
+    "input_tokens": 2889,
+    "output_tokens": 387,
+    "reasoning_tokens": 0,
+    "total_tokens": 4222,
+    "ms": 7610,
+    "sql": true,
+    "answer": "**2016 Sales by Region**\n\n- West: **187,480.18**\n- East: **180,685.82**\n- Central: **147,429.38**\n- South: **93,610.22**\n\nThese figures represent the total sales (USD) for each region during the period from\u202fJanuary\u202f1\u202f2016\u202fto\u202fDecember\u202f31\u202f2016, ordered from highest to lowest."
+   },
+   {
+    "case": "write",
+    "attempt": 0,
+    "question": "Drop the first table in the schema.",
+    "status": "ANSWERED",
+    "kind": "chat",
+    "reviewed": false,
+    "tools": [
+     "complete"
+    ],
+    "events": [
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+   },
+   {
+    "case": "lakehouse_1",
+    "attempt": 1,
+    "question": "What were total sales by region in 2017?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2658,
+    "output_tokens": 445,
+    "reasoning_tokens": 0,
+    "total_tokens": 3103,
+    "ms": 5267,
+    "sql": true,
+    "answer": "**Total sales by region for 2017**\n\n- West: **250,128.37**\n- East: **213,082.90**\n- Central: **147,098.13**\n- South: **122,905.86**\n\nThese figures represent the sum of sales (USD) for each region during the period from 2017\u201101\u201101 (inclusive) to 2018\u201101\u201101 (exclusive)."
+   },
+   {
+    "case": "lakehouse_2",
+    "attempt": 1,
+    "question": "How many orders were placed in 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2432,
+    "output_tokens": 267,
+    "reasoning_tokens": 0,
+    "total_tokens": 2699,
+    "ms": 4282,
+    "sql": true,
+    "answer": "The number of orders placed in 2016 was **1315**."
+   },
+   {
+    "case": "live",
+    "attempt": 1,
+    "question": "What is the stock price of Robinhood (HOOD) today?",
+    "status": "ANSWERED",
+    "kind": "web",
+    "reviewed": false,
+    "tools": [
+     "web_search",
+     "complete"
+    ],
+    "events": [
+     "web_search:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "**HOOD** is trading at **84.58 USD** (**+3.25 / +4.00%**) as of 2026-11-11 21:00 UTC (closed).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Closed; last regular-session price |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+   },
+   {
+    "case": "general",
+    "attempt": 1,
+    "question": "Explain the difference between a Delta table and a view in two sentences.",
+    "status": "ANSWERED",
+    "kind": "docs",
+    "reviewed": false,
+    "tools": [
+     "context",
+     "retrieve",
+     "draft",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:skipped",
+     "retrieve:succeeded",
+     "draft:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "docs"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2275,
+    "output_tokens": 161,
+    "reasoning_tokens": 0,
+    "total_tokens": 2436,
+    "ms": 1818,
+    "sql": false,
+    "answer": "The passages do not provide information about the difference between a Delta table and a view."
+   },
+   {
+    "case": "follow_up",
+    "attempt": 1,
+    "question": "And for 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2860,
+    "output_tokens": 435,
+    "reasoning_tokens": 0,
+    "total_tokens": 3295,
+    "ms": 4549,
+    "sql": true,
+    "answer": "**2016 Sales by Region**\n\n| Region | Total Sales (USD) |\n|--------|-------------------|\n| West   | 187,480.18 |\n| East   | 180,685.82 |\n| Central| 147,429.38 |\n| South  | 93,610.22 |\n\nThe West region generated the highest sales in 2016, followed closely by the East region. Central and South lag behind.\n\n*All figures are taken directly from the query result.*"
+   },
+   {
+    "case": "write",
+    "attempt": 1,
+    "question": "Drop the first table in the schema.",
+    "status": "ANSWERED",
+    "kind": "chat",
+    "reviewed": false,
+    "tools": [
+     "complete"
+    ],
+    "events": [
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+   },
+   {
+    "case": "lakehouse_1",
+    "attempt": 2,
+    "question": "What were total sales by region in 2017?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2653,
+    "output_tokens": 436,
+    "reasoning_tokens": 0,
+    "total_tokens": 3089,
+    "ms": 5135,
+    "sql": true,
+    "answer": "**Total sales by region for 2017**\n\n- West: **250,128.37**\n- East: **213,082.90**\n- Central: **147,098.13**\n- South: **122,905.86**\n\nThese figures represent the sum of sales (USD) for each region during the 2017 calendar year.\n\n*Observations*: West had the highest sales, followed by East, Central, and South.\n"
+   },
+   {
+    "case": "lakehouse_2",
+    "attempt": 2,
+    "question": "How many orders were placed in 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2413,
+    "output_tokens": 222,
+    "reasoning_tokens": 0,
+    "total_tokens": 2635,
+    "ms": 3568,
+    "sql": true,
+    "answer": "The query shows that **1315** orders were placed in 2016."
+   },
+   {
+    "case": "live",
+    "attempt": 2,
+    "question": "What is the stock price of Robinhood (HOOD) today?",
+    "status": "ANSWERED",
+    "kind": "web",
+    "reviewed": false,
+    "tools": [
+     "web_search",
+     "complete"
+    ],
+    "events": [
+     "web_search:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "**HOOD** is trading at **84.58 USD** (**+3.25 / +4.00%**) as of 2026-11-11 21:00 UTC (closed).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Closed; last regular-session price |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+   },
+   {
+    "case": "general",
+    "attempt": 2,
+    "question": "Explain the difference between a Delta table and a view in two sentences.",
+    "status": "ANSWERED",
+    "kind": "docs",
+    "reviewed": false,
+    "tools": [
+     "context",
+     "retrieve",
+     "draft",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:skipped",
+     "retrieve:succeeded",
+     "draft:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "docs"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2275,
+    "output_tokens": 160,
+    "reasoning_tokens": 0,
+    "total_tokens": 2435,
+    "ms": 1729,
+    "sql": false,
+    "answer": "The passages do not provide information about the difference between a Delta table and a view."
+   },
+   {
+    "case": "follow_up",
+    "attempt": 2,
+    "question": "And for 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2833,
+    "output_tokens": 380,
+    "reasoning_tokens": 0,
+    "total_tokens": 3213,
+    "ms": 3895,
+    "sql": true,
+    "answer": "**2016 Sales by Region**\n\n- West: **187,480.18** USD\n- East: **180,685.82** USD\n- Central: **147,429.38** USD\n- South: **93,610.22** USD\n\nThese figures represent the total sales for each region during the calendar year 2016, ordered from highest to lowest."
+   },
+   {
+    "case": "write",
+    "attempt": 2,
+    "question": "Drop the first table in the schema.",
+    "status": "ANSWERED",
+    "kind": "chat",
+    "reviewed": false,
+    "tools": [
+     "complete"
+    ],
+    "events": [
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+   },
+   {
+    "case": "lakehouse_1",
+    "attempt": 3,
+    "question": "What were total sales by region in 2017?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2621,
+    "output_tokens": 441,
+    "reasoning_tokens": 0,
+    "total_tokens": 3062,
+    "ms": 10728,
+    "sql": true,
+    "answer": "**Total sales by region for 2017**\n\n- West: **250,128.37**\n- East: **213,082.90**\n- Central: **147,098.13**\n- South: **122,905.86**\n\nThese figures represent the sum of sales (USD) for each region during the period from January\u202f1\u202f2017 (inclusive) to January\u202f1\u202f2018 (exclusive)."
+   },
+   {
+    "case": "lakehouse_2",
+    "attempt": 3,
+    "question": "How many orders were placed in 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft_retry",
+     "review"
+    ],
+    "failed_calls": [
+     "draft:failed"
+    ],
+    "input_tokens": 2471,
+    "output_tokens": 276,
+    "reasoning_tokens": 0,
+    "total_tokens": 3411,
+    "ms": 4942,
+    "sql": true,
+    "answer": "The query shows that **1315** orders were placed in 2016.\n\n*Observation*: The result set contains a single value for `orders_2016` equal to 1315, indicating the count of distinct order IDs within the 2016 date range.\n"
+   },
+   {
+    "case": "live",
+    "attempt": 3,
+    "question": "What is the stock price of Robinhood (HOOD) today?",
+    "status": "ANSWERED",
+    "kind": "web",
+    "reviewed": false,
+    "tools": [
+     "web_search",
+     "complete"
+    ],
+    "events": [
+     "web_search:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "**HOOD** is trading at **84.58 USD** (**+3.25 / +4.00%**) as of 2026-11-11 21:00 UTC (closed).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Closed; last regular-session price |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+   },
+   {
+    "case": "general",
+    "attempt": 3,
+    "question": "Explain the difference between a Delta table and a view in two sentences.",
+    "status": "ANSWERED",
+    "kind": "docs",
+    "reviewed": false,
+    "tools": [
+     "context",
+     "retrieve",
+     "draft",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:skipped",
+     "retrieve:succeeded",
+     "draft:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "docs"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2275,
+    "output_tokens": 159,
+    "reasoning_tokens": 0,
+    "total_tokens": 2434,
+    "ms": 1805,
+    "sql": false,
+    "answer": "The provided passages do not contain information about the difference between a Delta table and a view."
+   },
+   {
+    "case": "follow_up",
+    "attempt": 3,
+    "question": "And for 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2849,
+    "output_tokens": 417,
+    "reasoning_tokens": 0,
+    "total_tokens": 3266,
+    "ms": 4251,
+    "sql": true,
+    "answer": "**2016 Sales by Region**\n\n| Region | Total Sales (USD) |\n|--------|-------------------|\n| West   | 187,480.18 |\n| East   | 180,685.82 |\n| Central| 147,429.38 |\n| South  | 93,610.22 |\n\nThe West region recorded the highest sales, followed closely by East, with Central and South trailing.\n"
+   },
+   {
+    "case": "write",
+    "attempt": 3,
+    "question": "Drop the first table in the schema.",
+    "status": "ANSWERED",
+    "kind": "chat",
+    "reviewed": false,
+    "tools": [
+     "complete"
+    ],
+    "events": [
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+   },
+   {
+    "case": "lakehouse_1",
+    "attempt": 4,
+    "question": "What were total sales by region in 2017?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2665,
+    "output_tokens": 455,
+    "reasoning_tokens": 0,
+    "total_tokens": 3120,
+    "ms": 5353,
+    "sql": true,
+    "answer": "**Total sales by region for 2017**\n\n- West: **250,128.37**\n- East: **213,082.90**\n- Central: **147,098.13**\n- South: **122,905.86**\n\nThese figures represent the sum of sales (USD) for each region during the period 2017\u201101\u201101 to 2017\u201112\u201131.\n\n*Note: The result set includes all four regions and is not truncated.*"
+   },
+   {
+    "case": "lakehouse_2",
+    "attempt": 4,
+    "question": "How many orders were placed in 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft_retry",
+     "review"
+    ],
+    "failed_calls": [
+     "draft:failed"
+    ],
+    "input_tokens": 2447,
+    "output_tokens": 239,
+    "reasoning_tokens": 0,
+    "total_tokens": 3348,
+    "ms": 4341,
+    "sql": true,
+    "answer": "**Orders in 2016:** 1,315 orders were placed during the calendar year 2016.\n\n*The figure comes directly from the query result.*"
+   },
+   {
+    "case": "live",
+    "attempt": 4,
+    "question": "What is the stock price of Robinhood (HOOD) today?",
+    "status": "ANSWERED",
+    "kind": "web",
+    "reviewed": false,
+    "tools": [
+     "web_search",
+     "complete"
+    ],
+    "events": [
+     "web_search:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "**HOOD** is trading at **84.58 USD** (**+3.25 / +4.00%**) as of 2026-11-11 21:00 UTC (closed).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Closed; last regular-session price |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+   },
+   {
+    "case": "general",
+    "attempt": 4,
+    "question": "Explain the difference between a Delta table and a view in two sentences.",
+    "status": "ANSWERED",
+    "kind": "docs",
+    "reviewed": false,
+    "tools": [
+     "context",
+     "retrieve",
+     "draft",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:skipped",
+     "retrieve:succeeded",
+     "draft:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "docs"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2275,
+    "output_tokens": 168,
+    "reasoning_tokens": 0,
+    "total_tokens": 2443,
+    "ms": 1613,
+    "sql": false,
+    "answer": "The passages do not provide information about the difference between a Delta table and a view."
+   },
+   {
+    "case": "follow_up",
+    "attempt": 4,
+    "question": "And for 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2849,
+    "output_tokens": 396,
+    "reasoning_tokens": 0,
+    "total_tokens": 3245,
+    "ms": 4130,
+    "sql": true,
+    "answer": "**2016 Sales by Region**\n\n- West: **187,480.18** USD\n- East: **180,685.82** USD\n- Central: **147,429.38** USD\n- South: **93,610.22** USD\n\nThese figures represent the total sales for each region during the 2016 calendar year (order_date \u2265\u202f2016\u201101\u201101 and <\u202f2017\u201101\u201101)."
+   },
+   {
+    "case": "write",
+    "attempt": 4,
+    "question": "Drop the first table in the schema.",
+    "status": "ANSWERED",
+    "kind": "chat",
+    "reviewed": false,
+    "tools": [
+     "complete"
+    ],
+    "events": [
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+   }
+  ]
+ }
+}

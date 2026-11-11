@@ -8,7 +8,7 @@ Branch `optimize/cleanup` from `spec-graph-medallion` @ `da74d90`. Config: `opti
 | 1 Inventory | done 2026-11-11: `INVENTORY.md`; 1 file and 14 exports proposed for removal, 4 owner decisions |
 | 2 Remove unused files | done 2026-11-11: `evals/tokens.py` deleted, 15 exports made file-local (the 14 listed plus `Profile`), 5 local tool paths ignored; 169 backend and 14 frontend tests pass, types and ruff clean (`optimize_out/phase2.json`). 4 owner decisions still open |
 | 3 Dependencies | done 2026-11-11: nothing to remove, all 10 Python and 16 Node packages are used. deptry's 4 findings are verified exceptions, recorded with reasons in `optimize.config.json` (`deptry_exceptions`); deptry now clean. Analysis tools pinned in `scripts/optimize_run.json`. Added `pip-audit` and `npm audit`: no known vulnerabilities. 169 backend and 14 frontend tests pass; install size unchanged, 163 MB / 70 Python, 172 MB / 164 Node (`optimize_out/phase3.json`) |
-| 4 Code and Databricks modernization | next |
+| 4 Code and Databricks modernization | done 2026-11-11: one outbound HTTP helper (timeout, retry with backoff), web search retry and 60 s cache, registry lookups off the event loop, per-table context in parallel, LangGraph loaded on first council run, compact JSON context with a 4,000-character / 50-row result cap, stale text fixed. 171 backend and 14 frontend tests pass; ruff, deptry, knip, pip-audit, npm audit clean (`optimize_out/phase4-static.json`). Six baseline questions, 5 runs each: same tool use, all answered, median latency 3,387 → 2,750 ms, median input tokens 2,441 → 2,344, app import 1.74 → 1.28 s (`optimize_out/phase4-q.json`, `phase4.json`). No deprecated Databricks paths in the code |
 | 5 Deploy to dev and verify | blocked unless an app slot is freed (3 of 3 used) |
 | 6 Final report | |
 
@@ -23,3 +23,8 @@ Branch `optimize/cleanup` from `spec-graph-medallion` @ `da74d90`. Config: `opti
 - `databricks aitools install`: skipped, the owner has an open decision to remove the Databricks kit and skills.
 - Server-ready cold start at baseline: sandbox refuses loopback; `import app` time used instead.
 - Playwright UI smoke: no browser or loopback in the job, and no local runs.
+- Prompt caching (`cache_control`): not applicable. The endpoints in use are not Claude and report no cache tokens; the Claude endpoint in the picker cannot be called until credits are added, so a cache read cannot be confirmed.
+- Keep last 6 turns, summarize older: not applicable, the agent carries a compact rolling state object, not chat history.
+- Smaller model for classification: not applicable, routing is rule-based and makes no model call.
+- vulture at 100%: `method` (`backend/tests/test_ask.py:639`) and `overwrite` (`backend/tests/test_ingest.py:62`) are parameters of test stubs that must match the SDK call signature; kept.
+- Agent Runtime migration: not performed (experimental; owner decision).
