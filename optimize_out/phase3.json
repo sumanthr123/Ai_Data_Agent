@@ -2,9 +2,18 @@
  "label": "phase3",
  "python": "3.11.10",
  "parts": [
+  "tests",
   "static",
   "size"
  ],
+ "tests": {
+  "ran": 169,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 1,
+  "passed": true,
+  "detail": ""
+ },
  "static": {
   "versions": {
    "ruff": "ruff 0.17.4",
@@ -38,8 +47,8 @@
    }
   },
   "pip_audit": {
-   "rc": 1,
-   "out": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/__main__.py\", line 8, in <module>\n    audit()\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_cli.py\", line 554, in audit\n    for spec, vulns in auditor.audit(source):\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_audit.py\", line 68, in audit\n    for dep, vulns in self._service.query_all(specs):\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_service/interface.py\", line 179, in query_all\n    for spec in specs:\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_dependency_source/requirement.py\", line 134, in collect\n    yield from self._collect_from_files(collect_files)\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_dependency_source/requirement.py\", line 180, in _collect_from_files\n    ve.create(ve_dir)\n  File \"/local_disk0/.ephemeral_nfs/envs/pythonEnv-793c4f43-3cdc-48e7-971e-2764d9ea1f4e/lib/python3.11/site-packages/pip_audit/_virtual_env.py\", line 80, in create\n    return super().create(env_dir)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.11/venv/__init__.py\", line 76, in create\n    self._setup_pip(context)\n  File \"/usr/lib/python3.11/venv/__init__.py\", line 358, in _setup_pip\n    self._call_new_python(context, '-m', 'ensurepip', '--upgrade',\n  File \"/usr/lib/python3.11/venv/__init__.py\", line 354, in _call_new_python\n    subprocess.check_output(args, **kwargs)\n  File \"/usr/lib/python3.11/subprocess.py\", line 466, in check_output\n    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.11/subprocess.py\", line 571, in run\n    raise CalledProcessError(retcode, process.args,\nsubprocess.CalledProcessError: Command '['/tmp/tmpaehxsgb0/bin/python3.11', '-m', 'ensurepip', '--upgrade', '--default-pip']' returned non-zero exit status 1.\n"
+   "rc": 0,
+   "out": "No known vulnerabilities found\n"
   },
   "npm_ci": {
    "rc": 0,
@@ -55,7 +64,7 @@
   },
   "frontend_tests": {
    "rc": 0,
-   "out": "\u001b[32m\u2714 drill-down skips dimensions already used, plus comparison and trend \u001b[90m(2.187041ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 no trend for an answer that is already a time series, no comparison without a year \u001b[90m(0.360737ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 high-cardinality columns are never suggested \u001b[90m(0.252341ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 one-line SQL is laid out by clause; multi-line SQL is untouched \u001b[90m(1.130659ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 ids, ZIP codes and codes are never charted as measures \u001b[90m(0.490743ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 NULL is shown as NULL, not zero \u001b[90m(15.45554ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 only http(s) and mailto links are allowed \u001b[90m(0.983696ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 markdown links render as links instead of raw text \u001b[90m(1.323751ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 unsafe links fall back to their text \u001b[90m(0.196936ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 citation markers resolve only to known sources \u001b[90m(0.248223ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 bold, code and LaTeX are cleaned up \u001b[90m(0.241828ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 common LaTeX symbols become plain characters \u001b[90m(0.410412ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 LaTeX function names lose their backslash \u001b[90m(0.18758ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 currency keeps its dollar signs; LaTeX math loses them \u001b[90m(0.213879ms)\u001b[39m\u001b[39m\n\u001b[34m\u2139 tests 14\u001b[39m\n\u001b[34m\u2139 suites 0\u001b[39m\n\u001b[34m\u2139 pass 14\u001b[39m\n\u001b[34m\u2139 fail 0\u001b[39m\n\u001b[34m\u2139 cancelled 0\u001b[39m\n\u001b[34m\u2139 skipped 0\u001b[39m\n\u001b[34m\u2139 todo 0\u001b[39m\n\u001b[34m\u2139 duration_ms 377.535708\u001b[39m\n"
+   "out": "\u001b[32m\u2714 drill-down skips dimensions already used, plus comparison and trend \u001b[90m(1.889438ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 no trend for an answer that is already a time series, no comparison without a year \u001b[90m(0.308254ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 high-cardinality columns are never suggested \u001b[90m(0.183891ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 one-line SQL is laid out by clause; multi-line SQL is untouched \u001b[90m(1.170263ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 ids, ZIP codes and codes are never charted as measures \u001b[90m(0.505094ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 NULL is shown as NULL, not zero \u001b[90m(15.572328ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 only http(s) and mailto links are allowed \u001b[90m(1.261097ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 markdown links render as links instead of raw text \u001b[90m(1.47947ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 unsafe links fall back to their text \u001b[90m(0.230982ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 citation markers resolve only to known sources \u001b[90m(0.504601ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 bold, code and LaTeX are cleaned up \u001b[90m(0.580862ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 common LaTeX symbols become plain characters \u001b[90m(0.546023ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 LaTeX function names lose their backslash \u001b[90m(0.349559ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 currency keeps its dollar signs; LaTeX math loses them \u001b[90m(0.24386ms)\u001b[39m\u001b[39m\n\u001b[34m\u2139 tests 14\u001b[39m\n\u001b[34m\u2139 suites 0\u001b[39m\n\u001b[34m\u2139 pass 14\u001b[39m\n\u001b[34m\u2139 fail 0\u001b[39m\n\u001b[34m\u2139 cancelled 0\u001b[39m\n\u001b[34m\u2139 skipped 0\u001b[39m\n\u001b[34m\u2139 todo 0\u001b[39m\n\u001b[34m\u2139 duration_ms 408.514892\u001b[39m\n"
   },
   "frontend_types": {
    "rc": 0,
