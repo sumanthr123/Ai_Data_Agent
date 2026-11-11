@@ -5,8 +5,8 @@ Branch `optimize/cleanup` from `spec-graph-medallion` @ `da74d90`. Config: `opti
 | Phase | Status |
 | --- | --- |
 | 0 Locate and baseline | done 2026-11-11: 169 backend tests pass, baseline recorded |
-| 1 Inventory | next |
-| 2 Remove unused files | |
+| 1 Inventory | done 2026-11-11: `INVENTORY.md`; 1 file and 14 exports proposed for removal, 4 owner decisions |
+| 2 Remove unused files | next |
 | 3 Dependencies | |
 | 4 Code and Databricks modernization | |
 | 5 Deploy to dev and verify | blocked unless an app slot is freed (3 of 3 used) |
