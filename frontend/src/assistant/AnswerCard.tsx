@@ -39,7 +39,7 @@ const CODES: Record<ErrorCode, Omit<Problem, 'technical'>> = {
 const byCode = (code: ErrorCode, raw: string): Problem => ({ ...CODES[code], technical: raw })
 
 /** Business language first; the raw message stays one click away. */
-export function problemOf(turn: Turn): Problem | null {
+function problemOf(turn: Turn): Problem | null {
   const r = turn.response
   if (turn.cancelled) return { kind: 'cancelled', title: 'Stopped by you', body: 'Nothing further ran on the warehouse. The steps that finished are kept above.', technical: '' }
   const raw = turn.error ?? (r?.status === 'ERROR' ? r.answer : '')

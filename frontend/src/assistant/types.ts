@@ -15,11 +15,11 @@ export interface ConversationState {
   pending_clarification: string | null
 }
 
-export interface Issue { severity: 'high' | 'medium' | 'low'; category: string; description: string }
+interface Issue { severity: 'high' | 'medium' | 'low'; category: string; description: string }
 export interface Check { name: string; status: 'passed' | 'failed' | 'warning' | 'skipped'; detail: string }
 export interface Identity { user: string | null; mode: 'user' | 'service_principal'; disclosure: string }
 export interface ModelOption { id: string; family: string; available: boolean; note: string }
-export interface ModelCall {
+interface ModelCall {
   role: 'analyst' | 'reviewer' | 'adjudicator' | 'council'; purpose: string; endpoint: string
   status: 'ok' | 'failed' | 'timed_out' | 'skipped_budget'; latency_ms: number
   prompt_tokens: number; completion_tokens: number; reasoning_tokens: number; cost_estimate_usd: number | null; error: string | null
@@ -44,12 +44,12 @@ export interface ResultPreview {
   columns: string[]; column_types: string[]; rows: Record<string, Cell>[]; row_count: number; truncated: boolean
   from_cache: boolean; statement_id: string | null; runtime_ms: number
 }
-export interface SourceInfo {
+interface SourceInfo {
   table: string; updated_at: string | null; sla_s?: number | null; kind: 'shared' | 'upload'; row_count: number | null
   date_range: string[] | null; warnings: string[]; expires_at: string | null
 }
-export type AskStatus = 'ANSWERED' | 'NEEDS_CLARIFICATION' | 'INSUFFICIENT_SCHEMA' | 'UNRESOLVED' | 'BUDGET_EXHAUSTED' | 'ERROR'
-export interface CouncilCandidate { label: string; endpoint: string; status: 'executed' | 'failed' | 'abstained'; sql: string | null; row_count: number | null; group: number | null; note: string }
+type AskStatus = 'ANSWERED' | 'NEEDS_CLARIFICATION' | 'INSUFFICIENT_SCHEMA' | 'UNRESOLVED' | 'BUDGET_EXHAUSTED' | 'ERROR'
+interface CouncilCandidate { label: string; endpoint: string; status: 'executed' | 'failed' | 'abstained'; sql: string | null; row_count: number | null; group: number | null; note: string }
 export interface CouncilInfo {
   trigger: 'dispute' | 'requested'; agreement: 'full' | 'partial' | 'conflict' | 'single'; candidates: CouncilCandidate[]
   judge: string; chosen: string | null; rationale: string; disagreement: string | null
@@ -68,7 +68,7 @@ export interface AskResponse {
   state: ConversationState; events: StageEvent[]; total_ms: number
 }
 
-export interface ColumnProfile {
+interface ColumnProfile {
   name: string; type: string; nulls: number; null_rate: number; distinct_approx: number | null
   min: string | null; max: string | null; anomalies: string[]
 }
@@ -81,7 +81,7 @@ export interface Dataset {
   date_column: string | null; column_descriptions: Record<string, string>; original_names: Record<string, string>
   profile: Profile | null; warnings: string[]; created_at: string | null; refreshed_at: string | null; expires_at: string | null
 }
-export interface ColumnPlan { name: string; original: string; type: string; notes: string[] }
+interface ColumnPlan { name: string; original: string; type: string; notes: string[] }
 export interface UploadResult {
   status: 'INGESTED' | 'NEEDS_SHEET'; dataset: string | null; file_name: string; sheet: string | null
   sheets: { name: string; rows: number; columns: number }[]; columns: ColumnPlan[]; row_count: number
