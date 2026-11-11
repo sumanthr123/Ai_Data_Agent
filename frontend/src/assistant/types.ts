@@ -72,7 +72,7 @@ interface ColumnProfile {
   name: string; type: string; nulls: number; null_rate: number; distinct_approx: number | null
   min: string | null; max: string | null; anomalies: string[]
 }
-export interface Profile {
+interface Profile {
   row_count: number; columns: ColumnProfile[]; duplicates: Record<string, number>; date_range: string[] | null
   profiled_at: string; warnings: string[]
 }

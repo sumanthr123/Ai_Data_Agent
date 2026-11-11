@@ -6,8 +6,8 @@ Branch `optimize/cleanup` from `spec-graph-medallion` @ `da74d90`. Config: `opti
 | --- | --- |
 | 0 Locate and baseline | done 2026-11-11: 169 backend tests pass, baseline recorded |
 | 1 Inventory | done 2026-11-11: `INVENTORY.md`; 1 file and 14 exports proposed for removal, 4 owner decisions |
-| 2 Remove unused files | next |
-| 3 Dependencies | |
+| 2 Remove unused files | done 2026-11-11: `evals/tokens.py` deleted, 15 exports made file-local (the 14 listed plus `Profile`), 5 local tool paths ignored; 169 backend and 14 frontend tests pass, types and ruff clean (`optimize_out/phase2.json`). 4 owner decisions still open |
+| 3 Dependencies | next |
 | 4 Code and Databricks modernization | |
 | 5 Deploy to dev and verify | blocked unless an app slot is freed (3 of 3 used) |
 | 6 Final report | |
