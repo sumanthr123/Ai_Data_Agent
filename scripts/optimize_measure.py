@@ -145,9 +145,9 @@ def part_start(root: Path) -> dict[str, Any]:
     direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # the job's outbound proxy can't reach localhost
     last = ""
     began = time.perf_counter()
-    server = subprocess.Popen([sys.executable, "-m", "uvicorn", "app:app", "--port", str(PORT), "--log-level", "warning"], cwd=root, env=env, stdout=log, stderr=log)
+    server = subprocess.Popen([sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", str(PORT), "--log-level", "info"], cwd=root, env=env, stdout=log, stderr=log)
     try:
-        while time.perf_counter() - began < 90 and server.poll() is None:
+        while time.perf_counter() - began < 120 and server.poll() is None:
             try:
                 with direct.open(f"http://127.0.0.1:{PORT}/api/health", timeout=2) as r:
                     if r.status == 200:
