@@ -10,7 +10,6 @@ import html
 import json
 import os
 import re
-import threading
 import time
 import urllib.error
 import urllib.parse
@@ -20,8 +19,11 @@ from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 from typing import Any
 
-_UA = "Mozilla/5.0 (compatible; DatabricksDataAgent/1.0)"
+from backend.services import http
+from backend.services.http import _cache, cached as _cached  # noqa: F401  (tests clear _cache)
+
 TIMEOUT = float(os.getenv("LIVE_TIMEOUT_S", "8"))
+PROBE_TIMEOUT = float(os.getenv("LIVE_PROBE_TIMEOUT_S", "4"))
 QUOTE_TTL_OPEN, QUOTE_TTL_CLOSED, NEWS_TTL = 30, 900, 600
 # In use: Yahoo, Google News, Gemini. The rest are probed so an admin can see which optional providers are reachable.
 HOSTS = ("query1.finance.yahoo.com", "news.google.com", "generativelanguage.googleapis.com",
@@ -36,9 +38,6 @@ _FILLER = re.compile(r"\b(what('s| is| are)?|whats|the|current|latest|today'?s?|
                      r"of|for|on|about|is|are|trading|at|please|tell me|me|show|give|news|headlines?|in|a|an)\b|[?!.,$()]", re.I)
 _TAGS = re.compile(r"<[^>]+>")
 
-_cache: dict[str, tuple[float, dict[str, Any]]] = {}
-_lock = threading.Lock()
-
 
 def is_quote_question(question: str) -> bool:
     return bool(_QUOTE_Q.search(question))
@@ -49,30 +48,7 @@ def is_news_question(question: str) -> bool:
 
 
 def _get(url: str) -> bytes:
-    """GET with one retry on 429/5xx that honours Retry-After (capped at 5 s)."""
-    for attempt in (0, 1):
-        try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": _UA}), timeout=TIMEOUT) as r:
-                return r.read()
-        except urllib.error.HTTPError as exc:
-            if attempt or exc.code not in (429, 500, 502, 503, 504):
-                raise
-            wait = exc.headers.get("Retry-After", "1") if exc.headers else "1"
-            time.sleep(min(float(wait) if wait.replace(".", "", 1).isdigit() else 1.0, 5.0))
-    raise RuntimeError("unreachable")
-
-
-def _cached(key: str, ttl_for: Any, fetch: Any) -> dict[str, Any]:
-    now = time.time()
-    with _lock:
-        hit = _cache.get(key)
-    if hit and now < hit[0]:
-        return {**hit[1], "cache_age_s": round(now - hit[1]["_fetched"], 1)}
-    value = fetch()
-    value["_fetched"] = now
-    with _lock:
-        _cache[key] = (now + ttl_for(value), value)
-    return {**value, "cache_age_s": 0.0}
+    return http.fetch(url, timeout=TIMEOUT)
 
 
 def clean(text: str, limit: int = 300) -> str:
@@ -186,7 +162,7 @@ def reachability() -> dict[str, str]:
     """Each provider host: reachable (any HTTP answer) or blocked (no connection). No keys are sent."""
     def probe(host: str) -> tuple[str, str]:
         try:
-            urllib.request.urlopen(urllib.request.Request(f"https://{host}/", headers={"User-Agent": _UA}), timeout=4).close()
+            urllib.request.urlopen(urllib.request.Request(f"https://{host}/", headers={"User-Agent": http.UA}), timeout=PROBE_TIMEOUT).close()
             return host, "reachable"
         except urllib.error.HTTPError:
             return host, "reachable"

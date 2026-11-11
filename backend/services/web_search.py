@@ -20,11 +20,16 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from backend.services import http
+
 logger = logging.getLogger("ask.web")
 
 MODEL = os.getenv("WEB_SEARCH_MODEL", "gemini-flash-latest")
 URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-_UA = "Mozilla/5.0 (compatible; DatabricksDataAgent/1.0)"
+TIMEOUT = float(os.getenv("WEB_SEARCH_TIMEOUT_S", "45"))
+SOURCE_TIMEOUT = float(os.getenv("WEB_SOURCE_TIMEOUT_S", "6"))
+# The same question within this many seconds reuses the last search (its retrieval time is shown); 0 always searches.
+CACHE_TTL = float(os.getenv("WEB_SEARCH_TTL_S", "60"))
 
 SEARCH_PROMPT = """Current date and time: {now} ({tz}). Interpret "today", "now", "latest" and "this year" relative to it.
 Using Google Search, answer factually: {query}
@@ -50,18 +55,22 @@ def local_now(timezone: str) -> tuple[str, str]:
     return dt.datetime.now(tz).strftime("%A, %B %d, %Y %I:%M %p %Z"), timezone
 
 
-def search(query: str, timezone: str = "UTC", timeout: float = 45.0) -> dict[str, Any]:
-    key = os.getenv("GEMINI_API_KEY")
-    if not key:
+def search(query: str, timezone: str = "UTC", timeout: float = TIMEOUT) -> dict[str, Any]:
+    if not os.getenv("GEMINI_API_KEY"):
         raise RuntimeError("Web search isn't configured (GEMINI_API_KEY is missing).")
+    if CACHE_TTL <= 0:
+        return {**_search(query, timezone, timeout), "cache_age_s": 0.0}
+    return http.cached(f"w:{timezone}:{' '.join(query.lower().split())}", lambda _: CACHE_TTL, lambda: _search(query, timezone, timeout))
+
+
+def _search(query: str, timezone: str, timeout: float) -> dict[str, Any]:
+    key = os.environ["GEMINI_API_KEY"]
     now, tz = local_now(timezone)
     body = {"contents": [{"role": "user", "parts": [{"text": SEARCH_PROMPT.format(now=now, tz=tz, query=query)}]}],
             "tools": [{"google_search": {}}]}
-    request = urllib.request.Request(URL.format(model=MODEL), data=json.dumps(body).encode(), method="POST",
-                                     headers={"Content-Type": "application/json", "x-goog-api-key": key})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            data = json.loads(response.read())
+        data = json.loads(http.fetch(URL.format(model=MODEL), data=json.dumps(body).encode(), timeout=timeout,
+                                     headers={"Content-Type": "application/json", "x-goog-api-key": key}))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="ignore")[:200]
         raise RuntimeError(f"Web search failed ({exc.code}): {detail}") from exc
@@ -122,8 +131,8 @@ def _resolve(web: dict[str, Any]) -> dict[str, Any] | None:
         return None
     final, head = uri, ""
     try:
-        req = urllib.request.Request(uri, headers={"User-Agent": _UA, "Accept": "text/html"})
-        with urllib.request.urlopen(req, timeout=6) as response:
+        req = urllib.request.Request(uri, headers={"User-Agent": http.UA, "Accept": "text/html"})
+        with urllib.request.urlopen(req, timeout=SOURCE_TIMEOUT) as response:
             final = response.geturl()
             head = response.read(300_000).decode("utf-8", errors="ignore")
     except Exception as exc:  # the redirect URI still identifies the source

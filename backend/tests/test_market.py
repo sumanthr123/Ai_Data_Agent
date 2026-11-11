@@ -10,7 +10,7 @@ import unittest.mock
 import urllib.error
 
 from backend.ask.orchestrator import _WRITE, READ_ONLY
-from backend.services import market
+from backend.services import http, market, web_search
 from backend.tests.test_ask import CFG, WEB_PLAN, fake_search, run
 
 NOW = time.time()
@@ -117,6 +117,24 @@ class ProviderTests(unittest.TestCase):
         with unittest.mock.patch("urllib.request.urlopen", side_effect=[busy, ok]) as urlopen:
             self.assertEqual(market._get("https://query1.finance.yahoo.com/x"), b"{}")
         self.assertEqual(urlopen.call_count, 2)
+
+    def test_fetch_gives_up_after_one_retry_and_never_retries_a_client_error(self):
+        def error(code):
+            return urllib.error.HTTPError("u", code, "x", {"Retry-After": "0.01"}, io.BytesIO())
+        for code, calls in ((503, 2), (404, 1)):
+            with unittest.mock.patch("urllib.request.urlopen", side_effect=[error(code), error(code)]) as urlopen:
+                with self.assertRaises(urllib.error.HTTPError):
+                    http.fetch("https://example.test/x", timeout=1)
+            self.assertEqual(urlopen.call_count, calls)
+
+    def test_web_search_is_reused_within_its_ttl_and_says_so(self):
+        found = {"query": "q", "searched_at": "t", "retrieved_at": "t", "summary": "s", "sources": []}
+        with unittest.mock.patch.dict("os.environ", {"GEMINI_API_KEY": "k"}), \
+                unittest.mock.patch.object(web_search, "_search", side_effect=lambda *a: dict(found)) as search:
+            first, second = web_search.search("Who  won?"), web_search.search("who won?")
+        self.assertEqual(search.call_count, 1)
+        self.assertEqual((first["cache_age_s"], second["summary"]), (0.0, "s"))
+        self.assertGreaterEqual(second["cache_age_s"], 0.0)
 
     def test_quote_question_detection(self):
         self.assertTrue(market.is_quote_question("What is the stock price of Robinhood (HOOD) today?"))

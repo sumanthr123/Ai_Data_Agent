@@ -770,7 +770,7 @@ class Orchestrator:
             detail=f"{uncited} statement(s) with figures cite no source" if uncited else f"{len(found['sources'])} source(s) cited")]
         self.verification.degraded_reasons.append(
             f"From a live web search ({found['retrieved_at']}), not from your data; only as reliable as the cited pages.")
-        self._event("web_search", "succeeded", mark, f"{len(found['sources'])} source(s)")
+        self._event("web_search", "succeeded", mark, f"{len(found['sources'])} source(s)" + (" (cached)" if found.get("cache_age_s") else ""))
         return self._finish("ANSWERED", state, question=question, kind="web", answer=answer, answer_truncated=truncated,
                             web_provider="Gemini (Google Search)", web_sources=[WebSource(**s) for s in found["sources"] if s.get("url")])
 
