@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import importlib
 import json
 import logging
 import random
@@ -24,7 +25,7 @@ from typing import Any, Callable, Literal, Protocol, TypeVar
 from databricks.sdk import WorkspaceClient
 from pydantic import BaseModel, ValidationError
 
-from backend.ask import code_check, council_graph, freshness, logs, grounding, joins, knowledge, profiling, prompts, sql_guard
+from backend.ask import code_check, freshness, logs, grounding, joins, knowledge, profiling, prompts, sql_guard
 from backend.ask.budget import Budget, BudgetExhausted
 from backend.ask.cache import ResultCache, normalize_sql
 from backend.ask.contracts import (
@@ -488,6 +489,8 @@ class Orchestrator:
         async def judge(tally: Any) -> AskResponse:
             return await self._council_judge(tally, context, state, question)
 
+        # LangGraph is only needed here, so it loads on the first council run instead of at every worker start.
+        council_graph = await asyncio.to_thread(importlib.import_module, "backend.ask.council_graph")
         graph = council_graph.build(draft, verify, judge)
         return (await graph.ainvoke({"endpoints": drafters, "drafts": []}))["response"]
 
