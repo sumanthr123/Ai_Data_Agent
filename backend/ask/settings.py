@@ -75,6 +75,9 @@ class AskSettings:
     max_sql_attempts: int = _int("MAX_SQL_ATTEMPTS", 3)
     max_total_tokens: int = _int("MAX_TOTAL_MODEL_TOKENS", 12000)
     max_rows_to_model: int = _int("MAX_RESULT_ROWS_TO_MODEL", 50)
+    # Result rows are dropped until the result fits; the model is told how many rows it sees. Council candidates get less each.
+    max_result_chars_to_model: int = _int("MAX_RESULT_CHARS_TO_MODEL", 4000)
+    max_council_result_chars_to_model: int = _int("MAX_COUNCIL_RESULT_CHARS_TO_MODEL", 2500)
     max_answer_words: int = _int("MAX_FINAL_ANSWER_WORDS", 250)
     max_rows_to_ui: int = _int("MAX_RESULT_ROWS_TO_UI", 500)
     export_max_rows: int = _int("EXPORT_MAX_ROWS", 100_000)

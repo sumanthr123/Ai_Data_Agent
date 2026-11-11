@@ -433,7 +433,7 @@ class Orchestrator:
     async def _draft(self, context: dict[str, Any], question: str, sql: str, assumptions: list[str], issues: list[Issue]) -> ProposalPayload:
         self._running("draft")
         mark = time.monotonic()
-        extra: dict[str, Any] = {"sql": sql, "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model))}
+        extra: dict[str, Any] = {"sql": sql, "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model, self.cfg.max_result_chars_to_model))}
         if issues:
             extra["review_issues"] = [i.model_dump() for i in issues]
         draft = await self._call("analyst", "revise" if issues else "draft", prompts.ANALYST_DRAFT.replace("{words}", str(self.cfg.max_answer_words)),
@@ -448,7 +448,7 @@ class Orchestrator:
             self._event("review", "skipped", mark, "Reviewer unavailable")
             return ReviewPayload(status="DEGRADED")
         payload = {**context, "sql": self.proposal.sql, "assumptions": self.proposal.assumptions,
-                   "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model)),
+                   "result": json.loads(grounding.summary(self.execution.result, self.cfg.max_rows_to_model, self.cfg.max_result_chars_to_model)),
                    "draft_answer": self.proposal.draft_answer, "hypotheses": self.proposal.hypotheses,
                    "automated_checks": [c.model_dump() for c in checks if c.status != "passed"]}
         try:
@@ -564,7 +564,7 @@ class Orchestrator:
         judge = next((e for e in (cfg.adjudicator, *cfg.council_endpoints) if model_family(e) != model_family(leader)), cfg.adjudicator)
         self.council.judge = judge
         payload = {**context, "candidates": [{
-            "label": ran[i][0].label, "sql": ran[i][0].sql, "result": json.loads(grounding.summary(ran[i][1].result, cfg.max_rows_to_model, max_chars=2500)),
+            "label": ran[i][0].label, "sql": ran[i][0].sql, "result": json.loads(grounding.summary(ran[i][1].result, cfg.max_rows_to_model, max_chars=cfg.max_council_result_chars_to_model)),
             "same_values_as": [ran[j][0].label for j in groups[ran[i][0].group] if j != i]} for i in order]}
         self._running("adjudicate")
         mark = time.monotonic()
@@ -672,7 +672,7 @@ class Orchestrator:
         return parsed
 
     def _user(self, context: dict[str, Any], question: str) -> str:
-        return f"<context>{json.dumps(context, default=str)}</context>\n{_data('question', question)}"
+        return f"<context>{json.dumps(context, default=str, separators=(',', ':'))}</context>\n{_data('question', question)}"
 
     # ---- results -----------------------------------------------------------------------------------------------
 
