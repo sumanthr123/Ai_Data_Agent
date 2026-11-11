@@ -304,6 +304,7 @@ export const AnswerCard = memo(function AnswerCard({ turn, live, theme, shape, p
 
             {r.result && <Visual r={r} theme={theme} onError={setNote} />}
             {!!r.web_sources?.length && <SourceList sources={r.web_sources} />}
+            {r.kind === 'web' && <ModelsUsed r={r} />}
             {r.code && <CodeAnswer code={r.code} />}
             {!!r.doc_sources?.length && <DocSources sources={r.doc_sources} />}
             {r.council && <CouncilView council={r.council} />}
