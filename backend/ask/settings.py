@@ -60,11 +60,11 @@ class AskSettings:
     council_endpoints: tuple[str, ...] = tuple(e.strip() for e in os.getenv("COUNCIL_ENDPOINTS", "databricks-gpt-oss-120b,databricks-llama-4-maverick").split(",") if e.strip())
     # A member slower than this is a failed vote; the others still count.
     council_member_timeout_s: int = _int("COUNCIL_MEMBER_TIMEOUT_S", 60)
-    # Tried once when the Analyst or Reviewer endpoint fails; never the same family as the other role.
     # Models the user may pick to answer (the Analyst); "Auto" uses ANALYST_MODEL_ENDPOINT.
     model_choices: tuple[str, ...] = tuple(e.strip() for e in os.getenv("MODEL_CHOICES", "databricks-gpt-oss-120b,databricks-llama-4-maverick,"
         "databricks-qwen35-122b-a10b,gemini-3-5-flash/gemini-3-5-flash,claude-sonnet-5-5/claude-sonnet-5-5").split(",") if e.strip())
-    fallback_endpoints: tuple[str, ...] =tuple(e.strip() for e in os.getenv("FALLBACK_ENDPOINTS", "databricks-qwen35-122b-a10b").split(",") if e.strip())
+    # Tried once when the Analyst or Reviewer endpoint fails; never the same family as the other role.
+    fallback_endpoints: tuple[str, ...] = tuple(e.strip() for e in os.getenv("FALLBACK_ENDPOINTS", "databricks-qwen35-122b-a10b").split(",") if e.strip())
     council_extra_tokens: int = _int("COUNCIL_EXTRA_TOKENS", 10000)
     council_extra_calls: int = _int("COUNCIL_EXTRA_CALLS", 4)
     use_user_token: bool = os.getenv("USE_USER_TOKEN", "false").lower() in ("1", "true", "yes")
@@ -79,6 +79,9 @@ class AskSettings:
     max_rows_to_ui: int = _int("MAX_RESULT_ROWS_TO_UI", 500)
     export_max_rows: int = _int("EXPORT_MAX_ROWS", 100_000)
     statement_timeout_s: int = _int("STATEMENT_TIMEOUT_S", 45)
+    # Backend-owned SQL (registry, ingestion, profiling), never model-written.
+    app_statement_timeout_s: int = _int("APP_STATEMENT_TIMEOUT_S", 120)
+    app_statement_row_limit: int = _int("APP_STATEMENT_ROW_LIMIT", 10_000)
     warehouse_start_grace_s: int = _int("WAREHOUSE_START_GRACE_S", 90)  # extra time while the warehouse starts or queues
     statement_byte_limit: int = _int("STATEMENT_BYTE_LIMIT", 16 * 1024 * 1024)
     model_timeout_s: int = _int("ASK_MODEL_TIMEOUT_S", 60)

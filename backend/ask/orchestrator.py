@@ -211,7 +211,7 @@ class Orchestrator:
         self._running("context")
         mark = time.monotonic()
         denied = "Couldn't open {}: it doesn't exist or you don't have access."
-        readable = [await asyncio.to_thread(self.registry.can_read, d, self.user_key) for d in datasets]
+        readable = await asyncio.gather(*(asyncio.to_thread(self.registry.can_read, d, self.user_key) for d in datasets))
         if not all(readable):
             # Unregistered tables and other users' uploads look the same: neither is acknowledged to exist.
             self._event("context", "failed", mark, "dataset not available to this user")
@@ -223,7 +223,7 @@ class Orchestrator:
             return self._finish("ERROR", state, answer=denied.format(", ".join(datasets)), error_code="not_found")
         self.versions = {t.full_name.lower(): t.updated_at or "" for t in tables}
         self.meta = {t.full_name.lower(): t.columns for t in tables}
-        described = [await self._describe(t) for t in tables]
+        described = await asyncio.gather(*(self._describe(t) for t in tables))
         self.sources = [s for s, _ in described]
         state.active_datasets = datasets
 
