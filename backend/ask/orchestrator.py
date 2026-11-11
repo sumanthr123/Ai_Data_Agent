@@ -92,7 +92,7 @@ class DatabricksData:
 
 READ_ONLY = "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
 # A request to change data (an instruction or a bare statement). Questions about results ("why did sales drop?") don't match.
-_WRITE = re.compile(r"^\s*(please\s+|can you\s+|could you\s+)?((drop|truncate|delete)\b[^?]*\b(tables?|schemas?|databases?|catalogs?|views?)\b|"
+_WRITE = re.compile(r"^\s*(please\s+|can you\s+|could you\s+)?((drop|truncate|delete)\s+((?!from\b|in\b|of\b)\S+\s+){0,3}(tables?|schemas?|databases?|catalogs?|views?)\b|"
                     r"delete\s+from\b|insert\s+into\b|update\s+\S+\s+set\b|alter\s+(table|schema|view|database|catalog)\b)", re.I)
 WEB_OFF = ("Live web search is turned off, so I can't answer questions about current events or anything outside your "
            "data. Ask about your datasets, this app, or code.")

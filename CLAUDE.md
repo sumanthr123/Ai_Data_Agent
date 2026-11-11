@@ -11,6 +11,7 @@ assistant. Design and measurements: ARCHITECTURE.md.
    one grounded Google Search; off while `GEMINI_API_KEY` is unset), `CLARIFY`, `INSUFFICIENT_SCHEMA`, or `READY` with SQL.
    Stock-price questions skip the plan: `backend/services/market.py` builds the answer from Yahoo Finance chart fields (no model;
    falls back to `WEB`). News falls back to Google News headlines when `WEB` is off or fails. `/api/health/live-sources` probes the hosts.
+   Quote and headline answers follow fixed formats in `market.py`; requests to change data get the fixed `READ_ONLY` refusal before any step.
 3. Data: `sql_guard.py` (read-only, approved tables) and `joins.py` (fan-out) before `warehouse.py` runs it; the
    Analyst drafts; `grounding.py` checks figures, causes and completeness; the Reviewer (a different model family)
    can veto; at most one correction.

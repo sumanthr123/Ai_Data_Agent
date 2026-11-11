@@ -170,7 +170,7 @@ class RouteTests(unittest.TestCase):
 
     def test_questions_about_change_are_not_refused(self):
         for ask in ("Why did sales drop in the West in 2017?", "Drop in profit by region?", "Which orders were deleted from the returns list?",
-                    "Update me on sales by region", "How do I write a DELETE FROM statement safely?"):
+                    "Update me on sales by region", "Drop the totals row from the table", "Drop it from the table", "How do I write a DELETE FROM statement safely?"):
             self.assertIsNone(_WRITE.search(ask), ask)
 
     def test_gemini_answers_name_their_provider(self):
