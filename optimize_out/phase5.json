@@ -1,0 +1,56 @@
+[
+ {
+  "case": "lakehouse_1",
+  "status": "ANSWERED",
+  "tools": "context > generate_sql > execute > draft > review > complete",
+  "ms": 6047,
+  "tokens": 3048,
+  "trace_id": "tr-ee333c7d4835bc543c9159a3bc1d9fbf",
+  "answer": "### Total Sales by Region in 2017\n| Region | Total Sales (USD) |\n|--------|-------------------|\n| West   | 250,128.37 |\n| East   | 213,082.90 |\n| Central| 147,098.13 |\n| South  | 122,905.86 |\n\nThe sales figures reflect the summed sales amount for each region during the 2017 calendar year."
+ },
+ {
+  "case": "lakehouse_2",
+  "status": "ANSWERED",
+  "tools": "context > generate_sql > execute > draft > review > complete",
+  "ms": 3554,
+  "tokens": 2656,
+  "trace_id": "tr-df8b0b92d03dbe5ef817eb1277a6ff64",
+  "answer": "**1,315 orders** were placed in 2016."
+ },
+ {
+  "case": "live",
+  "status": "ANSWERED",
+  "tools": "web_search > complete",
+  "ms": 123,
+  "tokens": 0,
+  "trace_id": "tr-5976f7ef6d786b20c7bdc96f7e00efa4",
+  "answer": "**HOOD** is trading at **84.58 USD** (**+3.25 / +4.00%**) as of 2026-11-11 21:00 UTC (closed).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Closed; last regular-session price |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+ },
+ {
+  "case": "general",
+  "status": "ANSWERED",
+  "tools": "context > retrieve > draft > complete",
+  "ms": 979,
+  "tokens": 2432,
+  "trace_id": "tr-f5130e7386f4a06c2ed5af0339dd254e",
+  "answer": "The passages do not provide information about the difference between a Delta table and a view."
+ },
+ {
+  "case": "follow_up",
+  "status": "ANSWERED",
+  "tools": "context > generate_sql > execute > draft > review > complete",
+  "ms": 5613,
+  "tokens": 3160,
+  "trace_id": "tr-a44702c8d5d315aab8c01cc4b373001e",
+  "answer": "**2016 Sales by Region**\n\n- West: **187,480.18**\n- East: **180,685.82**\n- Central: **147,429.38**\n- South: **93,610.22**\n\nThese figures represent the total sales (USD) for each region during the 2016 calendar year, based on orders with `order_date` from 2016\u201101\u201101 (inclusive) to 2017\u201101\u201101 (exclusive)."
+ },
+ {
+  "case": "write",
+  "status": "ANSWERED",
+  "tools": "complete",
+  "ms": 0,
+  "tokens": 0,
+  "trace_id": "tr-5eeb99578680e449d613db0a1c240e51",
+  "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+ }
+]
