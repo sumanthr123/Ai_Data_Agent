@@ -1,0 +1,745 @@
+{
+ "label": "phase4",
+ "python": "3.11.10",
+ "parts": [
+  "tests",
+  "static",
+  "start",
+  "questions"
+ ],
+ "tests": {
+  "ran": 171,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 1,
+  "passed": true,
+  "detail": ""
+ },
+ "static": {
+  "versions": {
+   "ruff": "ruff 0.17.4",
+   "vulture": "vulture 2.16",
+   "deptry": "deptry 0.25.1",
+   "pip_audit": "pip-audit 2.10.1"
+  },
+  "ruff": {
+   "rc": 0,
+   "out": "\u001b[1;32mAll checks passed!\u001b[0m\n"
+  },
+  "vulture_80": {
+   "rc": 3,
+   "out": "backend/tests/test_ask.py:639: unused variable 'method' (100% confidence)\nbackend/tests/test_ingest.py:62: unused variable 'overwrite' (100% confidence)\n"
+  },
+  "vulture_60": {
+   "rc": 3,
+   "out": "app.py:21: unused function 'health' (60% confidence)\napp.py:26: unused function 'live_sources' (60% confidence)\napp.py:37: unused function 'spa' (60% confidence)\nbackend/ask/contracts.py:28: unused variable 'cited_metrics' (60% confidence)\nbackend/ask/contracts.py:37: unused variable 'cited_metrics' (60% confidence)\nbackend/ask/contracts.py:42: unused variable 'severity' (60% confidence)\nbackend/ask/contracts.py:78: unused variable 'last_query_id' (60% confidence)\nbackend/ask/contracts.py:200: unused variable 'retrieved_at' (60% confidence)\nbackend/ask/contracts.py:207: unused variable 'excerpt' (60% confidence)\nbackend/ask/contracts.py:248: unused variable 'answer_truncated' (60% confidence)\nbackend/ask/contracts.py:278: unused variable 'distinct_approx' (60% confidence)\nbackend/ask/contracts.py:289: unused variable 'profiled_at' (60% confidence)\nbackend/ask/contracts.py:304: unused variable 'join_keys' (60% confidence)\nbackend/ask/contracts.py:310: unused variable 'refreshed_at' (60% confidence)\nbackend/ask/contracts.py:337: unused variable 'rejected_row_count' (60% confidence)\nbackend/ask/orchestrator.py:873: unused attribute 'last_query_id' (60% confidence)\nbackend/routers/ask.py:160: unused function 'identity' (60% confidence)\nbackend/routers/ask.py:224: unused function 'export_csv' (60% confidence)\nbackend/routers/ask.py:266: unused function 'feedback' (60% confidence)\nbackend/routers/ask.py:330: unused function 'delete_upload' (60% confidence)\nbackend/services/compare.py:56: unused variable 'a_missing' (60% confidence)\nbackend/services/compare.py:57: unused variable 'b_missing' (60% confidence)\nbackend/tests/test_ask.py:269: unused method 'log_message' (60% confidence)\nbackend/tests/test_ask.py:272: unused method 'do_POST' (60% confidence)\nbackend/tests/test_ask.py:639: unused variable 'method' (100% confidence)\nbackend/tests/test_ingest.py:62: unused variable 'overwrite' (100% confidence)\ndata/pipelines/bronze.py:19: unused function 'snapshots' (60% confidence)\ndata/pipelines/bronze.py:31: unused function 'changes' (60% confidence)\ndata/pipelines/silver.py:34: unused function 'orders_changes' (60% confidence)\n"
+  },
+  "deptry": {
+   "rc": 0,
+   "out": "Scanning 49 files...\n\n\u001b[1m\u001b[32mSuccess! No dependency issues found.\u001b[m\n"
+  },
+  "deptry_ignored": {
+   "DEP002": {
+    "uvicorn": "the app.yaml command; started as a program, never imported",
+    "python-multipart": "FastAPI imports it at runtime for the upload route (UploadFile, Form) in backend/routers/ask.py"
+   },
+   "DEP003": {
+    "nodejs_wheel": "job-only tool for the frontend steps; installed by the job specs in scripts/*_run.json, the app does not need it"
+   }
+  },
+  "pip_audit": {
+   "rc": 0,
+   "out": "No known vulnerabilities found\n"
+  },
+  "npm_ci": {
+   "rc": 0,
+   "out": "\nadded 86 packages in 5s\nnpm notice\nnpm notice New major version of npm available! 11.17.0 -> 12.2.2\nnpm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2\nnpm notice To update run: npm install -g npm@12.2.2\nnpm notice\n"
+  },
+  "npm_audit": {
+   "rc": 0,
+   "out": "found 0 vulnerabilities\n"
+  },
+  "knip": {
+   "rc": 1,
+   "out": "\u001b[93m\u001b[4mUnused files\u001b[24m\u001b[39m (3)\nsrc/assistant/followups.test.ts\nsrc/assistant/format.test.ts   \nsrc/lib/markdown.test.ts       \n\u001b[93m\u001b[4mUnused exports\u001b[24m\u001b[39m (1)\nsafeHref  function  src/lib/markdown.ts:4:17\n"
+  },
+  "frontend_tests": {
+   "rc": 0,
+   "out": "\u001b[32m\u2714 drill-down skips dimensions already used, plus comparison and trend \u001b[90m(1.834482ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 no trend for an answer that is already a time series, no comparison without a year \u001b[90m(0.309256ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 high-cardinality columns are never suggested \u001b[90m(0.189744ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 one-line SQL is laid out by clause; multi-line SQL is untouched \u001b[90m(1.098686ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 ids, ZIP codes and codes are never charted as measures \u001b[90m(0.450306ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 NULL is shown as NULL, not zero \u001b[90m(15.021946ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 only http(s) and mailto links are allowed \u001b[90m(0.957631ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 markdown links render as links instead of raw text \u001b[90m(1.323743ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 unsafe links fall back to their text \u001b[90m(0.200753ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 citation markers resolve only to known sources \u001b[90m(0.242802ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 bold, code and LaTeX are cleaned up \u001b[90m(0.258353ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 common LaTeX symbols become plain characters \u001b[90m(0.437126ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 LaTeX function names lose their backslash \u001b[90m(0.192194ms)\u001b[39m\u001b[39m\n\u001b[32m\u2714 currency keeps its dollar signs; LaTeX math loses them \u001b[90m(0.204403ms)\u001b[39m\u001b[39m\n\u001b[34m\u2139 tests 14\u001b[39m\n\u001b[34m\u2139 suites 0\u001b[39m\n\u001b[34m\u2139 pass 14\u001b[39m\n\u001b[34m\u2139 fail 0\u001b[39m\n\u001b[34m\u2139 cancelled 0\u001b[39m\n\u001b[34m\u2139 skipped 0\u001b[39m\n\u001b[34m\u2139 todo 0\u001b[39m\n\u001b[34m\u2139 duration_ms 329.888567\u001b[39m\n"
+  },
+  "frontend_types": {
+   "rc": 0,
+   "out": ""
+  }
+ },
+ "start": {
+  "import_app_s": [
+   1.281,
+   1.283,
+   1.293
+  ],
+  "import_app_median_s": 1.283,
+  "server_ready_s": 1.41
+ },
+ "questions": {
+  "errors": [],
+  "summary": {
+   "lakehouse_1": {
+    "runs": 3,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "context > generate_sql > execute > draft > review > complete"
+    ],
+    "median_ms": 5353,
+    "median_input_tokens": 2626,
+    "median_output_tokens": 419
+   },
+   "lakehouse_2": {
+    "runs": 3,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "context > generate_sql > execute > draft > review > complete"
+    ],
+    "median_ms": 3634,
+    "median_input_tokens": 2427,
+    "median_output_tokens": 263
+   },
+   "live": {
+    "runs": 3,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "web_search > complete"
+    ],
+    "median_ms": 98,
+    "median_input_tokens": 0,
+    "median_output_tokens": 0
+   },
+   "general": {
+    "runs": 3,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "context > retrieve > draft > complete"
+    ],
+    "median_ms": 3414,
+    "median_input_tokens": 2275,
+    "median_output_tokens": 163
+   },
+   "follow_up": {
+    "runs": 3,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "context > generate_sql > execute > draft > review > complete"
+    ],
+    "median_ms": 4494,
+    "median_input_tokens": 2785,
+    "median_output_tokens": 356
+   },
+   "write": {
+    "runs": 3,
+    "statuses": [
+     "ANSWERED"
+    ],
+    "tools": [
+     "complete"
+    ],
+    "median_ms": 0,
+    "median_input_tokens": 0,
+    "median_output_tokens": 0
+   }
+  },
+  "overall": {
+   "median_ms": 3573.0,
+   "median_input_tokens": 2347.5,
+   "median_output_tokens": 198.0
+  },
+  "cache_tokens": "not reported: the serving endpoints in use return no cache token counts",
+  "runs": [
+   {
+    "case": "lakehouse_1",
+    "attempt": 0,
+    "question": "What were total sales by region in 2017?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2616,
+    "output_tokens": 395,
+    "reasoning_tokens": 0,
+    "total_tokens": 3011,
+    "ms": 12874,
+    "sql": true,
+    "answer": "**Total sales by region for 2017**\n\n- West: **250,128.37**\n- East: **213,082.90**\n- Central: **147,098.13**\n- South: **122,905.86**\n\nThese figures represent the sum of sales (USD) for each region during the period from 2017\u201101\u201101 (inclusive) to 2018\u201101\u201101 (exclusive)."
+   },
+   {
+    "case": "lakehouse_2",
+    "attempt": 0,
+    "question": "How many orders were placed in 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2420,
+    "output_tokens": 233,
+    "reasoning_tokens": 0,
+    "total_tokens": 2653,
+    "ms": 4235,
+    "sql": true,
+    "answer": "The query shows that **1315** orders were placed in 2016."
+   },
+   {
+    "case": "live",
+    "attempt": 0,
+    "question": "What is the stock price of Robinhood (HOOD) today?",
+    "status": "ANSWERED",
+    "kind": "web",
+    "reviewed": false,
+    "tools": [
+     "web_search",
+     "complete"
+    ],
+    "events": [
+     "web_search:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 124,
+    "sql": false,
+    "answer": "**HOOD** is trading at **85.17 USD** (**+3.84 / +4.72%**) as of 2026-11-11 19:33 UTC (open).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Open |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+   },
+   {
+    "case": "general",
+    "attempt": 0,
+    "question": "Explain the difference between a Delta table and a view in two sentences.",
+    "status": "ANSWERED",
+    "kind": "docs",
+    "reviewed": false,
+    "tools": [
+     "context",
+     "retrieve",
+     "draft",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:skipped",
+     "retrieve:succeeded",
+     "draft:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "docs"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2275,
+    "output_tokens": 163,
+    "reasoning_tokens": 0,
+    "total_tokens": 2438,
+    "ms": 4079,
+    "sql": false,
+    "answer": "The provided passages do not contain information about the difference between a Delta table and a view."
+   },
+   {
+    "case": "follow_up",
+    "attempt": 0,
+    "question": "And for 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2785,
+    "output_tokens": 356,
+    "reasoning_tokens": 0,
+    "total_tokens": 3141,
+    "ms": 4687,
+    "sql": true,
+    "answer": "**2016 Total Sales by Region**\n\n- West: **187,480.18** USD\n- Central: **147,429.38** USD\n- East: **180,685.82** USD\n- South: **93,610.22** USD\n\nThese figures represent the sum of sales for each region during the calendar year 2016."
+   },
+   {
+    "case": "write",
+    "attempt": 0,
+    "question": "Drop the first table in the schema.",
+    "status": "ANSWERED",
+    "kind": "chat",
+    "reviewed": false,
+    "tools": [
+     "complete"
+    ],
+    "events": [
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+   },
+   {
+    "case": "lakehouse_1",
+    "attempt": 1,
+    "question": "What were total sales by region in 2017?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2626,
+    "output_tokens": 419,
+    "reasoning_tokens": 0,
+    "total_tokens": 3045,
+    "ms": 5353,
+    "sql": true,
+    "answer": "**Total sales by region for 2017**\n\n- West: **250,128.37**\n- East: **213,082.90**\n- Central: **147,098.13**\n- South: **122,905.86**\n\nThese figures represent the sum of sales (USD) for each region during the 2017 calendar year."
+   },
+   {
+    "case": "lakehouse_2",
+    "attempt": 1,
+    "question": "How many orders were placed in 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2427,
+    "output_tokens": 271,
+    "reasoning_tokens": 0,
+    "total_tokens": 2698,
+    "ms": 3634,
+    "sql": true,
+    "answer": "**1,315 orders** were placed in 2016."
+   },
+   {
+    "case": "live",
+    "attempt": 1,
+    "question": "What is the stock price of Robinhood (HOOD) today?",
+    "status": "ANSWERED",
+    "kind": "web",
+    "reviewed": false,
+    "tools": [
+     "web_search",
+     "complete"
+    ],
+    "events": [
+     "web_search:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "**HOOD** is trading at **85.17 USD** (**+3.84 / +4.72%**) as of 2026-11-11 19:33 UTC (open).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Open |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+   },
+   {
+    "case": "general",
+    "attempt": 1,
+    "question": "Explain the difference between a Delta table and a view in two sentences.",
+    "status": "ANSWERED",
+    "kind": "docs",
+    "reviewed": false,
+    "tools": [
+     "context",
+     "retrieve",
+     "draft",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:skipped",
+     "retrieve:succeeded",
+     "draft:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "docs"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2275,
+    "output_tokens": 163,
+    "reasoning_tokens": 0,
+    "total_tokens": 2438,
+    "ms": 3414,
+    "sql": false,
+    "answer": "The passages do not provide information about the difference between a Delta table and a view."
+   },
+   {
+    "case": "follow_up",
+    "attempt": 1,
+    "question": "And for 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2800,
+    "output_tokens": 350,
+    "reasoning_tokens": 0,
+    "total_tokens": 3150,
+    "ms": 4494,
+    "sql": true,
+    "answer": "**2016 Sales by Region**\n\n- West: **187,480.18** USD\n- Central: **147,429.38** USD\n- East: **180,685.82** USD\n- South: **93,610.22** USD\n\nThese figures represent the sum of sales for each region during the 2016 calendar year (order_date \u2265\u202f2016\u201101\u201101 and <\u202f2017\u201101\u201101)."
+   },
+   {
+    "case": "write",
+    "attempt": 1,
+    "question": "Drop the first table in the schema.",
+    "status": "ANSWERED",
+    "kind": "chat",
+    "reviewed": false,
+    "tools": [
+     "complete"
+    ],
+    "events": [
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+   },
+   {
+    "case": "lakehouse_1",
+    "attempt": 2,
+    "question": "What were total sales by region in 2017?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2675,
+    "output_tokens": 443,
+    "reasoning_tokens": 0,
+    "total_tokens": 3118,
+    "ms": 5040,
+    "sql": true,
+    "answer": "**Total sales by region for 2017**\n\n- West: **250,128.37**\n- East: **213,082.90**\n- Central: **147,098.13**\n- South: **122,905.86**\n\nThese figures represent the sum of sales (USD) for each region during the period from Jan\u202f1\u202f2017 (inclusive) to Jan\u202f1\u202f2018 (exclusive)."
+   },
+   {
+    "case": "lakehouse_2",
+    "attempt": 2,
+    "question": "How many orders were placed in 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2433,
+    "output_tokens": 263,
+    "reasoning_tokens": 0,
+    "total_tokens": 2696,
+    "ms": 3512,
+    "sql": true,
+    "answer": "The query shows that **1315** orders were placed in 2016."
+   },
+   {
+    "case": "live",
+    "attempt": 2,
+    "question": "What is the stock price of Robinhood (HOOD) today?",
+    "status": "ANSWERED",
+    "kind": "web",
+    "reviewed": false,
+    "tools": [
+     "web_search",
+     "complete"
+    ],
+    "events": [
+     "web_search:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 98,
+    "sql": false,
+    "answer": "**HOOD** is trading at **85.32 USD** (**+3.99 / +4.91%**) as of 2026-11-11 19:33 UTC (open).\n\n| Field | Value |\n| --- | --- |\n| Previous Close | 81.33 USD |\n| Market State | Open |\n| Data Delay | May be delayed up to 15 minutes; free data source |\n| Data Provider | [Yahoo Finance](https://finance.yahoo.com/quote/HOOD) |\n\n*For informational purposes only; this is not investment advice.*"
+   },
+   {
+    "case": "general",
+    "attempt": 2,
+    "question": "Explain the difference between a Delta table and a view in two sentences.",
+    "status": "ANSWERED",
+    "kind": "docs",
+    "reviewed": false,
+    "tools": [
+     "context",
+     "retrieve",
+     "draft",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:skipped",
+     "retrieve:succeeded",
+     "draft:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "docs"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2275,
+    "output_tokens": 153,
+    "reasoning_tokens": 0,
+    "total_tokens": 2428,
+    "ms": 3021,
+    "sql": false,
+    "answer": "The passages do not provide information about the difference between a Delta table and a view."
+   },
+   {
+    "case": "follow_up",
+    "attempt": 2,
+    "question": "And for 2016?",
+    "status": "ANSWERED",
+    "kind": "data",
+    "reviewed": true,
+    "tools": [
+     "context",
+     "generate_sql",
+     "execute",
+     "draft",
+     "review",
+     "complete"
+    ],
+    "events": [
+     "context:succeeded",
+     "generate_sql:succeeded",
+     "execute:succeeded",
+     "draft:succeeded",
+     "review:succeeded",
+     "complete:succeeded"
+    ],
+    "calls": [
+     "plan",
+     "draft",
+     "review"
+    ],
+    "failed_calls": [],
+    "input_tokens": 2779,
+    "output_tokens": 385,
+    "reasoning_tokens": 0,
+    "total_tokens": 3164,
+    "ms": 4134,
+    "sql": true,
+    "answer": "**2016 Sales by Region**\n\n- West: **187,480.18** USD\n- Central: **147,429.38** USD\n- East: **180,685.82** USD\n- South: **93,610.22** USD\n\nThese figures represent the sum of sales for each region during the 2016 calendar year (order_date \u2265\u202f2016\u201101\u201101 and <\u202f2017\u201101\u201101)."
+   },
+   {
+    "case": "write",
+    "attempt": 2,
+    "question": "Drop the first table in the schema.",
+    "status": "ANSWERED",
+    "kind": "chat",
+    "reviewed": false,
+    "tools": [
+     "complete"
+    ],
+    "events": [
+     "complete:succeeded"
+    ],
+    "calls": [],
+    "failed_calls": [],
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0,
+    "ms": 0,
+    "sql": false,
+    "answer": "Refused: Data Desk is a strictly read-only agent and cannot modify, drop, or write to lakehouse tables."
+   }
+  ]
+ }
+}
