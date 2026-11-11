@@ -135,7 +135,7 @@ export function EvidenceDrawer({ turn, onClose }: { turn: Turn | null; onClose: 
               </button>
             ))}
           </div>
-          <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div role="tabpanel" className="relative min-h-0 flex-1 overflow-y-auto p-4">
             {tab === 'SQL' && (r.sql ? (
               <div className="space-y-3">
                 <CodeBlock code={layoutSql(r.sql)} lang="sql" />

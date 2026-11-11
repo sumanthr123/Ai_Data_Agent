@@ -359,7 +359,7 @@ export default function AssistantApp() {
           </div>
         ) : (
           <>
-            <div ref={feed} role="log" aria-live="off" aria-label="Conversation" className="min-h-0 flex-1 overflow-y-auto">
+            <div ref={feed} role="log" aria-live="off" aria-label="Conversation" className="relative min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto max-w-[760px] space-y-10 px-4 pb-6 pt-2">
                 {loadError && <p role="alert" className="rounded-xl border border-err/40 bg-err/5 p-3 text-[13px] text-err">Can't reach the data service: {loadError} <button type="button" className="underline" onClick={() => refresh()}>Retry</button></p>}
                 {turns.map((t, i) => (
