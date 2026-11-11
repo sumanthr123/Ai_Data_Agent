@@ -1,0 +1,7 @@
+{"run_name": "consensus-agent-optimize-{{LABEL}}",
+ "environments": [{"environment_key": "py", "spec": {"client": "2", "dependencies": [
+   "-r /Workspace/Users/{{USER}}/consensus-agent-optimize/requirements.txt", "nodejs-wheel==24.19.0", "ruff", "vulture", "deptry"]}}],
+ "tasks": [{"task_key": "measure", "environment_key": "py", "spark_python_task": {"source": "WORKSPACE",
+   "python_file": "/Workspace/Users/{{USER}}/consensus-agent-optimize/scripts/optimize_measure.py",
+   "parameters": ["--root", "/Workspace/Users/{{USER}}/consensus-agent-optimize", "--warehouse-id", "{{WAREHOUSE_ID}}",
+                  "--label", "{{LABEL}}", "--parts", "{{PARTS}}", "--repeat", "{{REPEAT}}"]}}]}
