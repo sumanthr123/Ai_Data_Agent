@@ -97,12 +97,17 @@ def frontend_copy(root: Path) -> tuple[Path, dict[str, str], dict[str, Any]]:
 
 def part_static(root: Path) -> dict[str, Any]:
     py = ["app.py", "backend", "evals", "scripts", "data"]
+    exceptions = json.loads((root / "optimize.config.json").read_text())["deptry_exceptions"]
+    ignores = ",".join(f"{rule}={'|'.join(names)}" for rule, names in exceptions.items())
     out: dict[str, Any] = {
-        "versions": {t: tool([sys.executable, "-m", t, "--version"])["out"].strip() for t in ("ruff", "vulture", "deptry")},
+        "versions": {t: tool([sys.executable, "-m", t, "--version"])["out"].strip() for t in ("ruff", "vulture", "deptry", "pip_audit")},
         "ruff": tool([sys.executable, "-m", "ruff", "check", *py, "--select", "F401,F811,F841,ERA001", "--output-format", "concise", "--no-cache"]),
         "vulture_80": tool([sys.executable, "-m", "vulture", *py, "--min-confidence", "80"]),
         "vulture_60": tool([sys.executable, "-m", "vulture", *py, "--min-confidence", "60"]),
-        "deptry": tool([sys.executable, "-m", "deptry", ".", "--requirements-files", "requirements.txt", "--extend-exclude", "frontend|data"]),
+        "deptry": tool([sys.executable, "-m", "deptry", ".", "--requirements-files", "requirements.txt", "--extend-exclude", "frontend|data",
+                        "--per-rule-ignores", ignores]),
+        "deptry_ignored": exceptions,
+        "pip_audit": tool([sys.executable, "-m", "pip_audit", "-r", "requirements.txt", "--progress-spinner", "off"], keep=6000),
     }
     if out["deptry"]["rc"] not in (0, 1):
         out["deptry_help"] = tool([sys.executable, "-m", "deptry", "--help"], keep=6000)
@@ -110,6 +115,7 @@ def part_static(root: Path) -> dict[str, Any]:
     out["npm_ci"] = install
     if install["rc"] == 0:
         _, node, npm = node_tools()
+        out["npm_audit"] = tool([node, npm, "audit"], work, env, keep=6000)
         out["knip"] = tool([node, npm, "exec", "--yes", "--", "knip", "--no-progress"], work, env)
         out["frontend_tests"] = tool([node, "--test", *sorted(str(p.relative_to(work)) for p in work.rglob("*.test.ts") if "node_modules" not in p.parts)], work, env, keep=3000)
         out["frontend_types"] = tool(["tsc", "-b", "--noEmit"], work, env, keep=3000)

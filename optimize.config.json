@@ -29,6 +29,15 @@
     "council": ["databricks-gpt-oss-120b", "databricks-llama-4-maverick", "gemini-3-5-flash/gemini-3-5-flash"]
   },
   "warehouse_id": "3d46aa484790192c",
-  "measure_command": "scripts/optimize.sh <label> [parts] [repeat]",
+  "deptry_exceptions": {
+    "DEP002": {
+      "uvicorn": "the app.yaml command; started as a program, never imported",
+      "python-multipart": "FastAPI imports it at runtime for the upload route (UploadFile, Form) in backend/routers/ask.py"
+    },
+    "DEP003": {
+      "nodejs_wheel": "job-only tool for the frontend steps; installed by the job specs in scripts/*_run.json, the app does not need it"
+    }
+  },
+  "measure_command":"scripts/optimize.sh <label> [parts] [repeat]",
   "local_runs": "none: tests, static analysis, installs and questions all run in a Databricks job"
 }
